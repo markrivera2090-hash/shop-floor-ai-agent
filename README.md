@@ -12,7 +12,9 @@ The repository now includes a local Streamlit operator UI over the grounded Open
 
 ## Demo URL
 
-No hosted deployment is configured. The local demo runs at the loopback URL printed by Streamlit, normally `http://localhost:8501`.
+Production demo: [shop-floor-ai-agent-nu.vercel.app](https://shop-floor-ai-agent-nu.vercel.app)
+
+The hosted demo uses temporary event history that may reset between requests. For persistent local history, run the app locally at the loopback URL printed by Streamlit, normally `http://localhost:8501`.
 
 ## Repository / Source Code
 
