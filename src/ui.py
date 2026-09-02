@@ -37,6 +37,7 @@ def _initial_state() -> dict[str, Any]:
         "latest_action": None,
         "result_context": None,
         "chat_messages": [],
+        "pending_request": None,
     }
 
 
@@ -252,11 +253,7 @@ def _conversation_for_agent(messages: Any) -> list[dict[str, str]]:
     return conversation[-8:]
 
 
-def _handle_scan_submission(
-    agent_runner: Callable[..., dict[str, Any]],
-    panel_lookup: Callable[[Any], dict[str, Any]],
-    event_history_path: str | Path | None,
-) -> None:
+def _handle_scan_submission() -> None:
     panel_code = _normalize_panel_code(st.session_state.get("panel_code_input"))
     workstation_id = _selected_workstation_id()
     if panel_code is None:
@@ -276,25 +273,20 @@ def _handle_scan_submission(
         st.session_state.latest_action = "scan"
         return
 
-    _run_request(
-        agent_runner=agent_runner,
-        panel_lookup=panel_lookup,
-        request=(
+    _clear_result_state()
+    st.session_state.pending_request = {
+        "request_type": "scan",
+        "request": (
             f"Verify whether panel {panel_code} can be processed at workstation "
             f"{workstation_id} and provide only grounded instructions."
         ),
-        request_type="scan",
-        panel_code=panel_code,
-        workstation_id=workstation_id,
-        event_history_path=event_history_path,
-    )
+        "panel_code": panel_code,
+        "workstation_id": workstation_id,
+        "conversation_history": None,
+    }
 
 
-def _handle_chat_submission(
-    agent_runner: Callable[..., dict[str, Any]],
-    panel_lookup: Callable[[Any], dict[str, Any]],
-    event_history_path: str | Path | None,
-) -> None:
+def _handle_chat_submission() -> None:
     question = st.session_state.get("agent_chat_input")
     if not isinstance(question, str) or not question.strip():
         return
@@ -322,18 +314,47 @@ def _handle_chat_submission(
     st.session_state.chat_messages.append(
         {"role": "user", "content": safe_question, "context": context_label}
     )
+    st.session_state.pending_request = {
+        "request_type": "question",
+        "request": normalized_question,
+        "panel_code": selected_panel,
+        "workstation_id": selected_workstation,
+        "conversation_history": prior_conversation,
+    }
+
+
+def _process_pending_request(
+    agent_runner: Callable[..., dict[str, Any]],
+    panel_lookup: Callable[[Any], dict[str, Any]],
+    event_history_path: str | Path | None,
+) -> None:
+    """Run queued model work only after the stable page has fully rendered."""
+
+    pending = st.session_state.get("pending_request")
+    if not isinstance(pending, dict):
+        return
+
+    # Claim the request before the blocking call so an interrupted rerun cannot
+    # dispatch the same tool workflow twice.
+    st.session_state.pending_request = None
+    request_type = pending.get("request_type")
     result = _run_request(
         agent_runner=agent_runner,
         panel_lookup=panel_lookup,
-        request=normalized_question,
-        request_type="question",
-        panel_code=selected_panel,
-        workstation_id=selected_workstation,
+        request=str(pending.get("request") or ""),
+        request_type=str(request_type or "question"),
+        panel_code=pending.get("panel_code"),
+        workstation_id=pending.get("workstation_id"),
         event_history_path=event_history_path,
-        conversation_history=prior_conversation,
+        conversation_history=pending.get("conversation_history"),
     )
-    st.session_state.chat_messages.append({"role": "assistant", "result": result})
-    st.session_state.chat_messages = st.session_state.chat_messages[-20:]
+    if request_type == "question":
+        st.session_state.chat_messages.append({"role": "assistant", "result": result})
+        st.session_state.chat_messages = st.session_state.chat_messages[-20:]
+
+    # The completed result was written after the page rendered, so perform one
+    # clean rerun that replaces the processing state in place.
+    st.rerun()
 
 
 def _render_panel(panel: dict[str, Any] | None, workstation_id: str) -> None:
@@ -539,13 +560,17 @@ def render_app(
         "Scan Panel",
         type="primary",
         width="stretch",
+        key="scan_panel",
+        disabled=isinstance(st.session_state.pending_request, dict),
         on_click=_handle_scan_submission,
-        args=(agent_runner, panel_lookup, event_history_path),
     )
 
     current_workstation = _selected_workstation_id()
     _render_panel(st.session_state.current_panel, current_workstation)
     _render_result(st.session_state.latest_scan_result, "scan")
+    pending_request = st.session_state.get("pending_request")
+    if isinstance(pending_request, dict) and pending_request.get("request_type") == "scan":
+        st.info("Checking the panel and workstation against approved records…")
 
     st.subheader("Ask the agent")
     current_panel = st.session_state.current_panel
@@ -576,19 +601,12 @@ def render_app(
     st.button(
         "Clear chat",
         icon=":material/delete_sweep:",
+        key="clear_chat",
+        disabled=isinstance(pending_request, dict),
         on_click=_clear_chat_state,
     )
 
     with st.container(border=True):
-        transcript = st.container()
-        st.chat_input(
-            "Ask about a panel, approved SOP guidance, or a shop-floor issue",
-            key="agent_chat_input",
-            on_submit=_handle_chat_submission,
-            args=(agent_runner, panel_lookup, event_history_path),
-        )
-
-    with transcript:
         for message in st.session_state.chat_messages:
             if not isinstance(message, dict):
                 continue
@@ -602,4 +620,20 @@ def render_app(
                 with st.chat_message("assistant"):
                     _render_chat_result(message["result"])
 
+        if (
+            isinstance(pending_request, dict)
+            and pending_request.get("request_type") == "question"
+        ):
+            with st.chat_message("assistant"):
+                st.caption("Checking approved records and SOP guidance…")
+
+        st.chat_input(
+            "Ask about a panel, approved SOP guidance, or a shop-floor issue",
+            key="agent_chat_input",
+            disabled=isinstance(pending_request, dict),
+            submit_mode="disable",
+            on_submit=_handle_chat_submission,
+        )
+
     _render_history(history_reader, event_history_path)
+    _process_pending_request(agent_runner, panel_lookup, event_history_path)

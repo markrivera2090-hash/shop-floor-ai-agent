@@ -10,6 +10,8 @@
 
 The UI retains the current grounded panel, latest safe scan result, action context, and up to ten user/assistant exchanges in the current browser session. Workstation or panel-code changes clear stale scan details without silently deleting the conversation. Each user message records the context used for that request, and an explicit Clear chat control resets only the conversation.
 
+Chat and scan callbacks only validate input and queue a request in session state. The full page then renders with stable element paths before the queued model/tool workflow runs at the end of the script. A single clean rerun displays the completed result. This prevents slow API calls from leaving stale copies of the chat and event-history sections in the browser during alternating chat and scan interactions.
+
 Panel entry accepts canonical or compact codes case-insensitively, so `P-1001`, `p-1001`, `P1001`, and `p1001` all become `P-1001` before reaching the agent, tool trace, or event history.
 
 The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events. Native Streamlit chat messages and a single chat input provide the conversation flow without an additional forced rerun. Scan and chat submissions execute their slow agent work in widget callbacks before the completed page rerender, preventing stale downstream controls from appearing as duplicate sections during hosted requests.

@@ -544,6 +544,37 @@ def test_clear_chat_removes_conversation_without_extra_agent_call(tmp_path):
     assert len(backend.calls) == 1
 
 
+def test_alternating_chat_and_scans_keeps_one_ui_branch_and_clear_chat_works(tmp_path):
+    app, backend = _make_app(tmp_path)
+
+    app = _ask(app, "What is the approved edge-banding process?")
+    app = _scan(app, "P-1001")
+    app = _ask(app, "What does the SOP say for this panel?")
+    app = _scan(app, "P-1002")
+
+    assert len(backend.calls) == 4
+    assert len(app.chat_input) == 1
+    assert [item.value for item in app.subheader].count("Ask the agent") == 1
+    assert len(app.session_state["chat_messages"]) == 4
+    assert [message.name for message in app.chat_message] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert not app.exception
+
+    _button(app, "Clear chat").click()
+    app.run()
+
+    assert app.session_state["chat_messages"] == []
+    assert not app.chat_message
+    assert len(app.chat_input) == 1
+    assert [item.value for item in app.subheader].count("Ask the agent") == 1
+    assert len(backend.calls) == 4
+    assert not app.exception
+
+
 def test_chat_passes_recent_conversation_to_follow_up_request(tmp_path):
     app, backend = _make_app(tmp_path)
     app = _ask(app, "What spindle speed should I use?")
@@ -664,10 +695,13 @@ def test_app_source_uses_real_runner_default_but_no_browser_test_switch():
     assert 'st.App(str(Path(__file__).resolve().with_name("streamlit_app.py")))' in app_source
     assert "render_app(" in script_source
     assert "TEST_MODE" not in source + app_source + script_source
-    assert "st.rerun()" not in source
-    assert 'submit_mode="disable"' not in source
+    assert source.count("st.rerun()") == 1
+    assert 'submit_mode="disable"' in source
     assert "on_click=_handle_scan_submission" in source
     assert "on_submit=_handle_chat_submission" in source
+    assert source.index("_render_history(history_reader") < source.index(
+        "_process_pending_request(agent_runner"
+    )
     assert "OPENAI_API_KEY" not in storable_session_keys(source)
 
 
