@@ -258,6 +258,10 @@ def test_app_loads_with_title_controls_and_both_workstations(tmp_path):
     assert app.checkbox(key="use_question_context").value is True
     assert "Question context: No panel code · Workstation EDGE-01" in _visible_text(app)
     assert {button.label for button in app.button} >= {"Scan Panel", "Ask Agent"}
+    assert "No grounded panel details" not in _visible_text(app)
+    assert "Scan a panel or ask a question" not in _visible_text(app)
+    assert "No scan, question, or escalation history" not in _visible_text(app)
+    assert not app.info
     assert backend.calls == []
 
 
@@ -450,10 +454,11 @@ def test_physical_label_mismatch_is_escalated_in_result_trace_and_history(tmp_pa
     assert bool(app.dataframe[0].value.iloc[0]["simulated_escalation"]) is True
 
 
-def test_missing_history_is_neutral_empty_state(tmp_path):
+def test_missing_history_renders_no_placeholder_notice(tmp_path):
     app, _ = _make_app(tmp_path)
 
-    assert "No scan, question, or escalation history yet." in _visible_text(app)
+    assert "No scan, question, or escalation history" not in _visible_text(app)
+    assert not app.dataframe
 
 
 def test_malformed_history_is_safely_reported_without_path(tmp_path):

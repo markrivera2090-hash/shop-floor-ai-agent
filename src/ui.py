@@ -220,7 +220,6 @@ def _run_request(
 def _render_panel(panel: dict[str, Any] | None, workstation_id: str) -> None:
     st.subheader("Current panel information")
     if not panel:
-        st.info("No grounded panel details are available for the current scan.")
         return
 
     dimensions = panel.get("dimensions_mm")
@@ -254,7 +253,6 @@ def _render_panel(panel: dict[str, Any] | None, workstation_id: str) -> None:
 def _render_result(result: dict[str, Any] | None, action: str | None) -> None:
     st.subheader("Agent instructions")
     if result is None:
-        st.info("Scan a panel or ask a question to receive grounded instructions.")
         return
 
     action_label = "Scan result" if action == "scan" else "Question result"
@@ -331,7 +329,6 @@ def _render_history(
     safe_events = [_safe_event(event) for event in events]
     safe_events = [event for event in safe_events if event is not None]
     if not safe_events:
-        st.info("No scan, question, or escalation history yet.")
         return
     st.dataframe(list(reversed(safe_events)), width="stretch", hide_index=True)
 
