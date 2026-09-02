@@ -665,6 +665,7 @@ def test_app_source_uses_real_runner_default_but_no_browser_test_switch():
     assert "render_app(" in script_source
     assert "TEST_MODE" not in source + app_source + script_source
     assert "st.rerun()" not in source
+    assert 'submit_mode="disable"' not in source
     assert "OPENAI_API_KEY" not in storable_session_keys(source)
 
 

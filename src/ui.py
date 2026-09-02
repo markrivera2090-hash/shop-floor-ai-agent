@@ -524,7 +524,6 @@ def render_app(
         question = st.chat_input(
             "Ask about a panel, approved SOP guidance, or a shop-floor issue",
             key="agent_chat_input",
-            submit_mode="disable",
         )
 
     with transcript:
