@@ -535,11 +535,13 @@ def test_clear_chat_removes_conversation_without_extra_agent_call(tmp_path):
     app = _ask(app, "What spindle speed should I use?")
     assert len(backend.calls) == 1
     assert app.session_state["chat_messages"]
+    generation = app.session_state["chat_generation"]
 
     _button(app, "Clear chat").click()
     app.run()
 
     assert app.session_state["chat_messages"] == []
+    assert app.session_state["chat_generation"] == generation + 1
     assert not app.chat_message
     assert len(backend.calls) == 1
 

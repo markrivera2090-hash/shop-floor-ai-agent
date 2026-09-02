@@ -37,6 +37,7 @@ def _initial_state() -> dict[str, Any]:
         "latest_action": None,
         "result_context": None,
         "chat_messages": [],
+        "chat_generation": 0,
         "pending_request": None,
     }
 
@@ -61,6 +62,10 @@ def _clear_result_state() -> None:
 
 def _clear_chat_state() -> None:
     st.session_state.chat_messages = []
+    generation = st.session_state.get("chat_generation", 0)
+    st.session_state.chat_generation = (
+        generation + 1 if isinstance(generation, int) else 1
+    )
 
 
 def _selected_workstation_id() -> str:
@@ -606,26 +611,28 @@ def render_app(
         on_click=_clear_chat_state,
     )
 
-    with st.container(border=True):
-        for message in st.session_state.chat_messages:
-            if not isinstance(message, dict):
-                continue
-            role = message.get("role")
-            if role == "user":
-                with st.chat_message("user"):
-                    st.markdown(str(message.get("content", "")))
-                    if message.get("context"):
-                        st.caption(str(message["context"]))
-            elif role == "assistant" and isinstance(message.get("result"), dict):
-                with st.chat_message("assistant"):
-                    _render_chat_result(message["result"])
+    with st.container(border=True, key="agent_chat_panel"):
+        transcript_key = f"chat_transcript_{st.session_state.chat_generation}"
+        with st.container(key=transcript_key):
+            for message in st.session_state.chat_messages:
+                if not isinstance(message, dict):
+                    continue
+                role = message.get("role")
+                if role == "user":
+                    with st.chat_message("user"):
+                        st.markdown(str(message.get("content", "")))
+                        if message.get("context"):
+                            st.caption(str(message["context"]))
+                elif role == "assistant" and isinstance(message.get("result"), dict):
+                    with st.chat_message("assistant"):
+                        _render_chat_result(message["result"])
 
-        if (
-            isinstance(pending_request, dict)
-            and pending_request.get("request_type") == "question"
-        ):
-            with st.chat_message("assistant"):
-                st.caption("Checking approved records and SOP guidance…")
+            if (
+                isinstance(pending_request, dict)
+                and pending_request.get("request_type") == "question"
+            ):
+                with st.chat_message("assistant"):
+                    st.caption("Checking approved records and SOP guidance…")
 
         st.chat_input(
             "Ask about a panel, approved SOP guidance, or a shop-floor issue",
