@@ -613,13 +613,15 @@ def render_app(
         else:
             st.caption("Question context: None · general SOP question")
 
-        st.button(
+        clear_chat = st.button(
             "Clear chat",
             icon=":material/delete_sweep:",
             key="clear_chat",
             disabled=isinstance(pending_request, dict),
-            on_click=_clear_chat_state,
         )
+        if clear_chat:
+            _clear_chat_state()
+            st.rerun()
 
         chat_panel_key = f"agent_chat_panel_{st.session_state.chat_generation}"
         with st.container(border=True, key=chat_panel_key):
