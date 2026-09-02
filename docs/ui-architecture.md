@@ -4,7 +4,7 @@
 
 `Streamlit UI → agent orchestration → OpenAI provider → deterministic tools → JSON / SOP / JSONL history`
 
-`app.py` loads the ignored local `.env` in the server process and calls `src.ui.render_app`. The browser receives only the safe configuration label and configured model name; the API key is never placed in session state or rendered.
+`app.py` exports the ASGI wrapper and points it at `streamlit_app.py`. The UI script loads the ignored local `.env` in the server process and calls `src.ui.render_app`. The browser receives only the safe configuration label and configured model name; the API key is never placed in session state or rendered.
 
 ## Session state
 
@@ -32,4 +32,4 @@ This is a single-user, no-auth local assessment demo. It has no database, produc
 
 ## Hosted demo boundary
 
-Vercel imports `api/index.py`, which exposes the Streamlit script through `st.App`. The hosted function points event history at `/tmp/shop-floor-ai-agent/event_history.jsonl`. This makes writes possible without committing runtime data, but `/tmp` is ephemeral and history may reset across function instances or deployments. The Vercel deployment is therefore a reviewer demo, not durable production storage.
+Vercel imports the root `app.py`, which exposes `streamlit_app.py` through `st.App` without a catch-all rewrite. The hosted function points event history at `/tmp/shop-floor-ai-agent/event_history.jsonl`. This makes writes possible without committing runtime data, but `/tmp` is ephemeral and history may reset across function instances or deployments. The Vercel deployment is therefore a reviewer demo, not durable production storage.

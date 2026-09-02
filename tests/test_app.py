@@ -563,9 +563,12 @@ def test_ui_tests_use_temporary_history_and_never_modify_real_history(tmp_path):
 def test_app_source_uses_real_runner_default_but_no_browser_test_switch():
     source = Path("src/ui.py").read_text(encoding="utf-8")
     app_source = Path("app.py").read_text(encoding="utf-8")
+    script_source = Path("streamlit_app.py").read_text(encoding="utf-8")
 
     assert "agent_runner: Callable[..., dict[str, Any]] = run_agent" in source
-    assert "TEST_MODE" not in source + app_source
+    assert 'st.App(str(Path(__file__).resolve().with_name("streamlit_app.py")))' in app_source
+    assert "render_app(" in script_source
+    assert "TEST_MODE" not in source + app_source + script_source
     assert "OPENAI_API_KEY" not in storable_session_keys(source)
 
 

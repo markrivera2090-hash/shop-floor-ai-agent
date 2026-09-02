@@ -69,7 +69,7 @@ Streamlit calls the bounded agent, which calls the OpenAI provider and allowlist
 
 This is a no-auth, single-user local assessment demo. It is not connected to production machines, a production database, or a real supervisor channel. See `docs/agent-architecture.md` and `docs/ui-architecture.md` for the detailed boundaries.
 
-Vercel imports the Streamlit ASGI application through `api/index.py`. Because Vercel's writable `/tmp` filesystem is ephemeral, hosted event history may reset between function instances or deployments; local execution continues to use ignored `runtime/event_history.jsonl`.
+`app.py` exports a Streamlit ASGI application around `streamlit_app.py`, allowing both the local Streamlit CLI and Vercel to use the same UI. Because Vercel's writable `/tmp` filesystem is ephemeral, hosted event history may reset between function instances or deployments; local execution continues to use ignored `runtime/event_history.jsonl`.
 
 ## Required Test Results
 

@@ -1,11 +1,8 @@
-"""Streamlit entry point for the Shop-Floor AI Agent local demo."""
+"""ASGI wrapper used by both Streamlit CLI and Vercel."""
 
-import os
+from pathlib import Path
 
-from dotenv import load_dotenv
-
-from src.ui import render_app
+import streamlit as st
 
 
-load_dotenv()
-render_app(event_history_path=os.environ.get("EVENT_HISTORY_PATH") or None)
+app = st.App(str(Path(__file__).resolve().with_name("streamlit_app.py")))
