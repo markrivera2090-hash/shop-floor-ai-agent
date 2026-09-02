@@ -128,6 +128,24 @@ def test_sop_queries_retrieve_required_grounding(query, required_source):
     assert required_source in result["sources"]
 
 
+@pytest.mark.parametrize(
+    "source_id",
+    [
+        "SOP-GENERAL-001",
+        "SOP-EDGE-001",
+        "SOP-DRILL-001",
+        "SOP-MISMATCH-001",
+        "SOP-UNSUPPORTED-001",
+        "SOP-ESCALATION-001",
+    ],
+)
+def test_sop_source_id_queries_return_the_exact_section(source_id):
+    result = search_sop(source_id)
+
+    assert result["success"] is True
+    assert result["sources"][0] == source_id
+
+
 def test_physical_label_mismatch_retrieves_mismatch_or_escalation_guidance():
     result = search_sop(
         "The physical panel label does not match the system information."

@@ -12,7 +12,7 @@ The UI retains the current grounded panel, latest safe scan result, action conte
 
 Panel entry accepts canonical or compact codes case-insensitively, so `P-1001`, `p-1001`, `P1001`, and `p1001` all become `P-1001` before reaching the agent, tool trace, or event history.
 
-The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events. Native Streamlit chat messages and a single chat input provide the conversation flow without an additional forced rerun.
+The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events. Native Streamlit chat messages and a single chat input provide the conversation flow without an additional forced rerun. Scan and chat submissions execute their slow agent work in widget callbacks before the completed page rerender, preventing stale downstream controls from appearing as duplicate sections during hosted requests.
 
 ## Grounded panel display
 

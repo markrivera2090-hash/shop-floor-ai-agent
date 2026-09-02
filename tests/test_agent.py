@@ -187,6 +187,100 @@ def test_live_defect_regression_correct_match_returns_grounded_success(tmp_path)
     assert "drill-01" not in response
 
 
+def test_compatible_scan_can_resolve_exact_general_sop_without_escalation(tmp_path):
+    provider = ScriptedProvider(
+        [
+            tool_turn("r1", ("c1", "get_panel", {"panel_code": "P-1001"})),
+            tool_turn(
+                "r2",
+                (
+                    "c2",
+                    "get_workstation_requirements",
+                    {"workstation_id": "EDGE-01"},
+                ),
+            ),
+            tool_turn("r3", ("c3", "search_sop", {"query": "SOP-GENERAL-001"})),
+            final_turn(
+                "r4",
+                "Compatibility verified using the panel, workstation, and general SOP.",
+            ),
+        ]
+    )
+
+    result = run_agent(
+        "Verify whether panel P-1001 can be processed at workstation EDGE-01.",
+        panel_code="P-1001",
+        workstation_id="EDGE-01",
+        request_type="scan",
+        provider=provider,
+        event_history_path=tmp_path / "events.jsonl",
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is False
+    assert "SOP-GENERAL-001" in result["sources"]
+    assert "compatibility verified" in result["response"].lower()
+    assert "do not process" not in result["response"].lower()
+
+
+def test_model_cannot_escalate_a_verified_compatible_scan_for_optional_sop_gap(
+    tmp_path,
+):
+    provider = ScriptedProvider(
+        [
+            tool_turn("r1", ("c1", "get_panel", {"panel_code": "P-1004"})),
+            tool_turn(
+                "r2",
+                (
+                    "c2",
+                    "get_workstation_requirements",
+                    {"workstation_id": "DRILL-01"},
+                ),
+            ),
+            tool_turn(
+                "r3", ("c3", "search_sop", {"query": "optional broad checks"})
+            ),
+            tool_turn(
+                "r4",
+                (
+                    "c4",
+                    "escalate_to_supervisor",
+                    {
+                        "reason": "Optional SOP search returned no match",
+                        "panel_code": "P-1004",
+                        "workstation_id": "DRILL-01",
+                        "context": None,
+                    },
+                ),
+            ),
+            final_turn(
+                "r5",
+                "Do not process yet because an optional SOP search was unavailable. "
+                "Supervisor escalation recorded.",
+            ),
+        ]
+    )
+    history_path = tmp_path / "events.jsonl"
+
+    result = run_agent(
+        "Verify whether panel P-1004 can be processed at workstation DRILL-01.",
+        panel_code="P-1004",
+        workstation_id="DRILL-01",
+        request_type="scan",
+        provider=provider,
+        event_history_path=history_path,
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is False
+    assert "compatibility verified" in result["response"].lower()
+    assert "do not process" not in result["response"].lower()
+    assert "escalate_to_supervisor" not in [
+        entry["tool"] for entry in result["trace"]
+    ]
+    assert not history_path.exists()
+
+
 def test_incidental_mismatch_source_does_not_override_matching_structured_records(
     tmp_path, monkeypatch
 ):

@@ -70,7 +70,7 @@ The same application code runs locally and on Vercel. Additional design details 
 - ☑ Unknown Panel
 - ☑ Supervisor Escalation
 
-The automated suite currently passes **211 tests with 0 failures**, including **29 Streamlit AppTest scenarios**. It also covers tool selection, multi-tool workflows, conversational follow-ups, irrelevant-question handling, panel-code normalization, safe failures, source attribution, event recording, and non-duplicated escalation messaging.
+The automated suite currently passes **219 tests with 0 failures**, including **29 Streamlit AppTest scenarios**. It also covers tool selection, multi-tool workflows, conversational follow-ups, exact SOP-ID retrieval, compatible-scan escalation prevention, irrelevant-question handling, panel-code normalization, safe failures, source attribution, event recording, and non-duplicated escalation messaging.
 
 ## Brief Technical Questions
 

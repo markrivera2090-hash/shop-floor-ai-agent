@@ -195,6 +195,72 @@ def _trace_entry(sequence: int, result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _verified_compatible_scan(
+    tool_results: list[dict[str, Any]],
+    panel_code: str | None,
+    workstation_id: str | None,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    panel_result = next(
+        (
+            result
+            for result in tool_results
+            if result["tool"] == "get_panel"
+            and result["success"]
+            and isinstance(result.get("data"), dict)
+            and result["data"].get("panel_code") == panel_code
+        ),
+        None,
+    )
+    workstation_result = next(
+        (
+            result
+            for result in tool_results
+            if result["tool"] == "get_workstation_requirements"
+            and result["success"]
+            and isinstance(result.get("data"), dict)
+            and result["data"].get("workstation_id") == workstation_id
+        ),
+        None,
+    )
+    if panel_result is None or workstation_result is None:
+        return None
+    panel_data = panel_result["data"]
+    workstation_data = workstation_result["data"]
+    if (
+        panel_data.get("required_workstation_id") != workstation_id
+        or panel_data.get("required_operation")
+        != workstation_data.get("supported_operation")
+    ):
+        return None
+    return panel_data, workstation_data
+
+
+def _compatible_scan_response(
+    panel_data: dict[str, Any],
+    workstation_data: dict[str, Any],
+    sources: list[str],
+) -> str:
+    panel_code = panel_data["panel_code"]
+    workstation_id = workstation_data["workstation_id"]
+    operation = str(panel_data["required_operation"]).replace("_", " ")
+    operation_source = {
+        "edge_banding": "SOP-EDGE-001",
+        "drilling": "SOP-DRILL-001",
+    }.get(panel_data["required_operation"])
+    procedure_text = (
+        f" Follow {operation_source} and complete the workstation's recorded checks "
+        "before processing."
+        if operation_source in sources
+        else " Complete the workstation's recorded checks and follow the approved "
+        "site procedure before processing."
+    )
+    return (
+        f"Compatibility verified: {panel_code} requires {operation} at "
+        f"{workstation_id}, and {workstation_id} supports {operation}."
+        f"{procedure_text}"
+    )
+
+
 def _safe_guard_failure(
     response: str,
     sources: list[str],
@@ -565,12 +631,36 @@ def run_agent(
                         error_message="A tool call ID was missing.",
                     )
                 signature = f"{tool_name}:{json.dumps(arguments, sort_keys=True, default=str)}"
+                compatible_scan = (
+                    _verified_compatible_scan(
+                        tool_results,
+                        normalized_panel_code,
+                        normalized_workstation_id,
+                    )
+                    if normalized_request_type == "scan"
+                    else None
+                )
+                escalation_not_required = (
+                    tool_name == "escalate_to_supervisor"
+                    and compatible_scan is not None
+                    and not _PHYSICAL_MISMATCH_TERMS.search(normalized_request)
+                    and not _UNSUPPORTED_PARAMETER_TERMS.search(normalized_request)
+                )
+                include_in_result = True
                 if signature in seen_calls:
                     result = _tool_failure(
                         tool_name if isinstance(tool_name, str) else "unknown",
                         "duplicate_tool_call",
                         "This identical tool call was already executed in the current run.",
                     )
+                elif escalation_not_required:
+                    seen_calls.add(signature)
+                    result = _tool_failure(
+                        "escalate_to_supervisor",
+                        "escalation_not_required",
+                        "The verified panel and workstation records are compatible.",
+                    )
+                    include_in_result = False
                 else:
                     seen_calls.add(signature)
                     result = dispatch_tool(
@@ -580,14 +670,15 @@ def run_agent(
                     )
                 total_tool_calls += 1
                 result, serialized_result = _bounded_tool_result(result)
-                tool_results.append(result)
-                trace.append(_trace_entry(len(trace) + 1, result))
-                if result["success"]:
-                    for source in result["sources"]:
-                        if source not in grounded_sources:
-                            grounded_sources.append(source)
-                    if result["tool"] == "escalate_to_supervisor":
-                        escalated = True
+                if include_in_result:
+                    tool_results.append(result)
+                    trace.append(_trace_entry(len(trace) + 1, result))
+                    if result["success"]:
+                        for source in result["sources"]:
+                            if source not in grounded_sources:
+                                grounded_sources.append(source)
+                        if result["tool"] == "escalate_to_supervisor":
+                            escalated = True
                 outputs.append(
                     {
                         "type": "function_call_output",
@@ -643,11 +734,20 @@ def run_agent(
             and result["error"].get("code") in _UNAVAILABLE_GROUNDING_ERRORS
             for result in tool_results
         )
+        compatible_scan = (
+            _verified_compatible_scan(
+                tool_results,
+                normalized_panel_code,
+                normalized_workstation_id,
+            )
+            if normalized_request_type == "scan"
+            else None
+        )
         escalation_required = (
             bool(_PHYSICAL_MISMATCH_TERMS.search(normalized_request))
             or bool(_UNSUPPORTED_PARAMETER_TERMS.search(normalized_request))
-            or unavailable_grounding
-            or not grounded_sources
+            or (unavailable_grounding and compatible_scan is None)
+            or (not grounded_sources and compatible_scan is None)
         )
         if escalation_required and not escalated:
             if total_tool_calls >= max_total_tool_calls:
@@ -726,6 +826,10 @@ def run_agent(
                     "The requested shop-floor guidance is unavailable in the approved "
                     "sources. Stop and follow the supervisor escalation process."
                 )
+        if compatible_scan is not None and not escalated:
+            final_response = _compatible_scan_response(
+                compatible_scan[0], compatible_scan[1], grounded_sources
+            )
         guard_failure = _apply_safety_gate(
             request=normalized_request,
             response=final_response,

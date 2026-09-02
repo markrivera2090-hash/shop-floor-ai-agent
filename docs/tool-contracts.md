@@ -17,7 +17,7 @@ Failures do not expose stack traces or private filesystem paths.
 
 - `get_panel(panel_code)` accepts `P-1001` or `P1001` case-insensitively, normalizes either form to canonical `P-1001`, and returns the exact matching JSON panel record and source. It does not perform fuzzy matching beyond this format normalization.
 - `get_workstation_requirements(workstation_id)` returns one exact JSON workstation record and a source such as `Workstation EDGE-01`. It does not infer requirements.
-- `search_sop(query)` parses level-two SOP headings and returns up to three ranked real sections using case-insensitive keyword matching and explicit terminology aliases.
+- `search_sop(query)` parses level-two SOP headings and returns up to three ranked real sections using exact source-ID lookup, case-insensitive keyword matching, and explicit terminology aliases.
 
 ## Local-action tools
 

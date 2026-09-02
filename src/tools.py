@@ -60,7 +60,13 @@ _STOP_WORDS = frozenset(
     }
 )
 _SOP_ALIASES = {
-    "SOP-GENERAL-001": ("unknown panel", "panel code not found", "panel verification"),
+    "SOP-GENERAL-001": (
+        "general panel verification",
+        "general sop",
+        "unknown panel",
+        "panel code not found",
+        "panel verification",
+    ),
     "SOP-EDGE-001": ("edge banding", "edge bander"),
     "SOP-DRILL-001": ("drilling", "drill"),
     "SOP-MISMATCH-001": (
@@ -291,13 +297,17 @@ def search_sop(query: Any) -> dict[str, Any]:
         source_id = section["source_id"]
         aliases = _SOP_ALIASES.get(source_id, ())
         alias_hits = sum(alias in query_lower for alias in aliases)
-        if source_id in _CONDITIONAL_SOP_SECTIONS and not alias_hits:
+        source_id_hit = source_id.lower() in query_lower
+        if source_id in _CONDITIONAL_SOP_SECTIONS and not (
+            alias_hits or source_id_hit
+        ):
             continue
 
         title_overlap = len(query_terms.intersection(_search_terms(section["title"])))
         content_overlap = len(query_terms.intersection(_search_terms(section["content"])))
+        exact_source_score = 100 if source_id_hit else 0
         alias_score = 12 * alias_hits
-        score = alias_score + (4 * title_overlap) + content_overlap
+        score = exact_source_score + alias_score + (4 * title_overlap) + content_overlap
 
         # Operation names are mutually exclusive for this assessment. A query that
         # names one must never retrieve the other merely through shared SOP wording.
