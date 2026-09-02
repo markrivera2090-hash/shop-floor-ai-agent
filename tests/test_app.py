@@ -696,7 +696,7 @@ def test_app_source_uses_real_runner_default_but_no_browser_test_switch():
     assert "render_app(" in script_source
     assert "TEST_MODE" not in source + app_source + script_source
     assert source.count("st.rerun()") == 1
-    assert 'submit_mode="disable"' in source
+    assert 'disabled=isinstance(pending_request, dict)' in source
     assert "on_click=_handle_scan_submission" in source
     assert "on_submit=_handle_chat_submission" in source
     assert source.index("_render_history(history_reader") < source.index(

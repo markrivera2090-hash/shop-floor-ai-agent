@@ -631,7 +631,6 @@ def render_app(
             "Ask about a panel, approved SOP guidance, or a shop-floor issue",
             key="agent_chat_input",
             disabled=isinstance(pending_request, dict),
-            submit_mode="disable",
             on_submit=_handle_chat_submission,
         )
 
