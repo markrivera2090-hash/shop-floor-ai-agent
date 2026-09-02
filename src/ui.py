@@ -621,9 +621,9 @@ def render_app(
             on_click=_clear_chat_state,
         )
 
-        with st.container(border=True, key="agent_chat_panel"):
-            transcript_key = f"chat_transcript_{st.session_state.chat_generation}"
-            with st.container(key=transcript_key):
+        chat_panel_key = f"agent_chat_panel_{st.session_state.chat_generation}"
+        with st.container(border=True, key=chat_panel_key):
+            with st.container(key="chat_transcript"):
                 for message in st.session_state.chat_messages:
                     if not isinstance(message, dict):
                         continue
