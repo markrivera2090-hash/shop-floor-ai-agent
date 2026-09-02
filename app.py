@@ -1,3 +1,3 @@
 """Shop-Floor AI Agent application entry point."""
 
-PHASE_STATUS = "Phase 3 is initialized."
+PHASE_STATUS = "Phase 4 is initialized."

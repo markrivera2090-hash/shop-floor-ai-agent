@@ -27,18 +27,36 @@ _STOP_WORDS = frozenset(
         "do",
         "does",
         "for",
+        "grounded",
         "i",
         "information",
         "is",
         "it",
         "me",
         "my",
+        "operation",
+        "panel",
+        "process",
+        "processed",
+        "processing",
+        "procedure",
+        "procedures",
+        "provide",
+        "record",
+        "records",
+        "required",
+        "selected",
         "should",
+        "system",
         "the",
         "this",
         "to",
         "use",
+        "verify",
+        "verification",
         "what",
+        "whether",
+        "workstation",
     }
 )
 _SOP_ALIASES = {
@@ -61,6 +79,11 @@ _SOP_ALIASES = {
     ),
     "SOP-ESCALATION-001": ("supervisor", "escalate", "escalation"),
 }
+_CONDITIONAL_SOP_SECTIONS = frozenset(
+    {"SOP-MISMATCH-001", "SOP-UNSUPPORTED-001", "SOP-ESCALATION-001"}
+)
+_MIN_SOP_RELEVANCE = 6
+_SECONDARY_SCORE_WINDOW = 4
 
 
 def _result(
@@ -250,22 +273,43 @@ def search_sop(query: Any) -> dict[str, Any]:
             error_message="The verified SOP contains no searchable sections.",
         )
 
-    query_lower = normalized_query.lower()
+    query_lower = normalized_query.lower().replace("_", " ")
     query_terms = _search_terms(normalized_query)
     ranked_matches: list[dict[str, Any]] = []
     for section in sections:
         source_id = section["source_id"]
-        searchable_text = f"{section['title']} {section['content']}"
-        overlap_score = len(query_terms.intersection(_search_terms(searchable_text)))
-        alias_score = 10 * sum(
-            alias in query_lower for alias in _SOP_ALIASES.get(source_id, ())
-        )
-        score = alias_score + overlap_score
-        if score:
+        aliases = _SOP_ALIASES.get(source_id, ())
+        alias_hits = sum(alias in query_lower for alias in aliases)
+        if source_id in _CONDITIONAL_SOP_SECTIONS and not alias_hits:
+            continue
+
+        title_overlap = len(query_terms.intersection(_search_terms(section["title"])))
+        content_overlap = len(query_terms.intersection(_search_terms(section["content"])))
+        alias_score = 12 * alias_hits
+        score = alias_score + (4 * title_overlap) + content_overlap
+
+        # Operation names are mutually exclusive for this assessment. A query that
+        # names one must never retrieve the other merely through shared SOP wording.
+        if source_id == "SOP-EDGE-001" and any(
+            alias in query_lower for alias in _SOP_ALIASES["SOP-DRILL-001"]
+        ):
+            continue
+        if source_id == "SOP-DRILL-001" and any(
+            alias in query_lower for alias in _SOP_ALIASES["SOP-EDGE-001"]
+        ):
+            continue
+
+        if score >= _MIN_SOP_RELEVANCE:
             ranked_matches.append({**section, "score": score})
 
     ranked_matches.sort(key=lambda match: (-match["score"], match["source_id"]))
-    ranked_matches = ranked_matches[:3]
+    if ranked_matches:
+        strongest_score = ranked_matches[0]["score"]
+        ranked_matches = [
+            match
+            for match in ranked_matches
+            if match["score"] >= strongest_score - _SECONDARY_SCORE_WINDOW
+        ][:3]
     if not ranked_matches:
         return _result(
             "search_sop",

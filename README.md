@@ -6,13 +6,13 @@ A junior AI engineer take-home project for a grounded shop-floor assistant.
 
 ## Current Status
 
-Phase 3 – Deterministic tools and event history complete.
+Phase 4 – OpenAI agent orchestration implemented, regression-tested, and live-verified.
 
-The repository now contains four fictional panel records, two fictional workstation records, a searchable Markdown SOP, deterministic validation, five logical tools, and local event history. The Streamlit UI, LLM integration, and agent orchestration are not implemented.
+The repository now includes OpenAI Responses API orchestration with model-directed function calling, a strict tool dispatcher, multi-round tool execution, grounded source collection, a safe activity trace, and deterministic response safety checks. The Streamlit UI is not implemented.
 
 ## Demo URL
 
-Not available in Phase 3.
+Not available in Phase 4.
 
 ## Repository / Source Code
 
@@ -20,11 +20,13 @@ This repository is the source-code workspace.
 
 ## LLM Provider
 
-OpenAI is planned; no LLM integration exists yet.
+OpenAI is the provider integration. The model comes from `OPENAI_MODEL`, and server-side credentials come from `OPENAI_API_KEY`.
+
+The controlled correct-workstation scenario was verified live with `gpt-5.6-sol`. It selected multiple tools, returned the required grounded sources, and did not produce the previously observed false mismatch. Automated tests continue to use injected fakes and never call OpenAI.
 
 ## Agent Implementation Approach
 
-The five deterministic tools are `get_panel`, `get_workstation_requirements`, `search_sop`, `record_event`, and `escalate_to_supervisor`. Results contain normalized inputs, success or failure, grounded sources, structured data, and safe errors. Model-directed tool selection and agent orchestration are not implemented.
+The LLM receives all five function definitions and selects tools through automatic function calling. A bounded orchestration loop executes only allowlisted deterministic tools, returns their results to the model, and supports additional tool rounds. Sources and the safe execution trace are computed from actual tool results rather than model-written citations.
 
 ## Data Storage Approach
 
@@ -45,11 +47,11 @@ uv pip install --python .venv/bin/python -r requirements.txt
 
 ## Architecture
 
-The deterministic grounding layer loads and validates JSON production facts and the Markdown SOP independently of Streamlit and OpenAI. Read-only tools retrieve those sources, while local-action tools append event history. Supervisor escalation is simulated for the assessment and does not contact a real person. The Streamlit UI, LLM integration, and agent orchestration remain future work.
+The OpenAI provider adapter is separated from orchestration and the strict dispatcher. Deterministic tools remain the only source of panel facts, workstation facts, SOP content, and local actions. Supervisor escalation is simulated and does not contact a real person. Automated provider tests use injected fakes and never spend API credits. The Streamlit UI remains future work.
 
 ## Required Test Results
 
-Phase 2 data-validation and Phase 3 tool-contract tests are implemented. The five final end-to-end assessment scenarios have not been run or marked as passed.
+Phase 2 validation, Phase 3 tool contracts, and 167 Phase 4 mocked provider/orchestration regression tests pass. The controlled correct-workstation API scenario also passes. The five final end-to-end UI assessment scenarios have not been run or marked as passed.
 
 ## Brief Technical Questions
 

@@ -124,6 +124,33 @@ def test_physical_label_mismatch_retrieves_mismatch_or_escalation_guidance():
     assert {"SOP-MISMATCH-001", "SOP-ESCALATION-001"}.intersection(result["sources"])
 
 
+def test_edge_banding_query_prioritizes_edge_and_excludes_drilling():
+    result = search_sop("edge banding")
+
+    assert result["sources"][0] == "SOP-EDGE-001"
+    assert "SOP-DRILL-001" not in result["sources"]
+
+
+def test_drilling_query_prioritizes_drilling_and_excludes_edge_banding():
+    result = search_sop("drilling")
+
+    assert result["sources"][0] == "SOP-DRILL-001"
+    assert "SOP-EDGE-001" not in result["sources"]
+
+
+def test_broad_correct_workstation_query_does_not_return_weak_unrelated_sections():
+    result = search_sop(
+        "Verify panel P-1001 at workstation EDGE-01 for the edge banding operation"
+    )
+
+    assert result["sources"] == ["SOP-EDGE-001"]
+
+
+def test_mismatch_and_unsupported_queries_retrieve_their_specific_sections():
+    assert search_sop("wrong workstation mismatch")["sources"][0] == "SOP-MISMATCH-001"
+    assert search_sop("spindle speed")["sources"][0] == "SOP-UNSUPPORTED-001"
+
+
 def test_unsupported_unrelated_query_returns_honest_no_match():
     result = search_sop("What is tomorrow's lunar weather forecast?")
 
