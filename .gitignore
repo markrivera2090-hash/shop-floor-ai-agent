@@ -24,5 +24,10 @@ event-history/
 event_history*.jsonl
 event-history*.jsonl
 
+# Local tooling and deployment state
+.vercel/
+.agents/
+.claude/
+
 # macOS
 .DS_Store
