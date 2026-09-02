@@ -10,6 +10,8 @@
 
 The UI retains only the current grounded panel, latest safe agent result, action type, and result context. Workstation or panel-code changes clear panel details, response, sources, trace, and escalation state. A new scan clears stale output before calling the agent. Follow-up questions replace only the latest response while preserving the current grounded panel context.
 
+The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events.
+
 ## Grounded panel display
 
 Panel details are never parsed from model text. After a scan, the UI performs a deterministic `get_panel` lookup only when the agent's computed trace contains a successful `get_panel` call. A failed or unknown scan leaves no panel details to display.

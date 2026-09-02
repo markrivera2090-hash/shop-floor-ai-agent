@@ -426,6 +426,31 @@ def render_app(
     _render_result(st.session_state.latest_result, st.session_state.latest_action)
 
     st.subheader("Ask the agent")
+    current_panel = st.session_state.current_panel
+    question_panel_code = (
+        current_panel.get("panel_code")
+        if isinstance(current_panel, dict)
+        else _normalize_panel_code(st.session_state.panel_code_input)
+    )
+    use_question_context = st.checkbox(
+        "Use selected panel and workstation context",
+        value=True,
+        key="use_question_context",
+        help=(
+            "Turn this off for a general SOP question that should not be associated "
+            "with the selected panel or workstation."
+        ),
+    )
+    if use_question_context:
+        panel_context_label = (
+            f"Panel {question_panel_code}" if question_panel_code else "No panel code"
+        )
+        st.caption(
+            f"Question context: {panel_context_label} · Workstation {current_workstation}"
+        )
+    else:
+        st.caption("Question context: None · general SOP question")
+
     with st.form("ask_agent_form", clear_on_submit=True):
         question = st.text_area(
             "Follow-up question",
@@ -439,19 +464,13 @@ def render_app(
         if not normalized_question:
             st.warning("Enter a question before asking the agent.")
         else:
-            current_panel = st.session_state.current_panel
-            panel_code = (
-                current_panel.get("panel_code")
-                if isinstance(current_panel, dict)
-                else _normalize_panel_code(st.session_state.panel_code_input)
-            )
             _run_request(
                 agent_runner=agent_runner,
                 panel_lookup=panel_lookup,
                 request=normalized_question,
                 request_type="question",
-                panel_code=panel_code,
-                workstation_id=current_workstation,
+                panel_code=question_panel_code if use_question_context else None,
+                workstation_id=current_workstation if use_question_context else None,
                 event_history_path=event_history_path,
             )
             st.rerun()

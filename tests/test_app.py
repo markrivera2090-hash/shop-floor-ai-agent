@@ -247,6 +247,8 @@ def test_app_loads_with_title_controls_and_both_workstations(tmp_path):
         "DRILL-01 — Drilling",
     ]
     assert app.text_input[0].label == "Panel code"
+    assert app.checkbox(key="use_question_context").value is True
+    assert "Question context: No panel code · Workstation EDGE-01" in _visible_text(app)
     assert {button.label for button in app.button} >= {"Scan Panel", "Ask Agent"}
     assert backend.calls == []
 
@@ -366,6 +368,39 @@ def test_unsupported_question_has_no_numeric_setting_and_has_required_source(tmp
     assert "sop-unsupported-001" in text
     assert not any(character.isdigit() for character in app.session_state["latest_result"]["response"])
     assert app.session_state["current_panel"]["panel_code"] == "P-1001"
+
+
+def test_question_context_is_visible_and_passed_by_default(tmp_path):
+    app, backend = _make_app(tmp_path)
+    app = _scan(app, "P-1001")
+
+    assert "Question context: Panel P-1001 · Workstation EDGE-01" in _visible_text(app)
+
+    app = _ask(app, "What does the SOP say for this panel?")
+    call = backend.calls[-1]
+
+    assert call["request_type"] == "question"
+    assert call["panel_code"] == "P-1001"
+    assert call["workstation_id"] == "EDGE-01"
+
+
+def test_general_question_mode_omits_panel_and_workstation_from_call_and_event(tmp_path):
+    app, backend = _make_app(tmp_path)
+    app = _scan(app, "P-1001")
+    app.checkbox(key="use_question_context").uncheck()
+    app.run()
+
+    assert "Question context: None · general SOP question" in _visible_text(app)
+
+    app = _ask(app, "The physical panel label does not match the system information.")
+    call = backend.calls[-1]
+
+    assert call["request_type"] == "question"
+    assert call["panel_code"] is None
+    assert call["workstation_id"] is None
+    assert backend.events[-1]["panel_code"] is None
+    assert backend.events[-1]["workstation_id"] is None
+    assert "supervisor escalation simulated successfully" in _visible_text(app).lower()
 
 
 def test_unknown_panel_clears_prior_details_and_shows_failed_trace(tmp_path):

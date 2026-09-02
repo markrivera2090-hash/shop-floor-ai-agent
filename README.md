@@ -8,7 +8,7 @@ A junior AI engineer take-home project for a grounded shop-floor assistant.
 
 Phase 5 – Streamlit application implemented, deployed, and automated-test verified
 
-The repository includes a Streamlit operator UI over the grounded OpenAI agent. It supports workstation selection, panel scans, deterministic panel details, follow-up questions, grounded sources, a safe tool trace, local or ephemeral hosted event history, and explicitly simulated escalation. The production page and core controls have been browser-verified; final independent end-to-end browser verification of all five scenarios remains pending.
+The repository includes a Streamlit operator UI over the grounded OpenAI agent. It supports workstation selection, panel scans, deterministic panel details, contextual or general follow-up questions, grounded sources, a safe tool trace, local or ephemeral hosted event history, and explicitly simulated escalation. The production page and core controls have been browser-verified; final independent end-to-end browser verification of all five scenarios remains pending.
 
 ## Demo URL
 
@@ -81,7 +81,7 @@ The complete automated suite is run with:
 .venv/bin/python -m pytest
 ```
 
-The complete suite passes 193 tests with 0 failures, including 22 injected Streamlit AppTest scenarios. Syntax checks and local Streamlit/ASGI page-load smoke checks also pass. Controlled live API checks cover the correct-workstation and supervisor-escalation scenarios. The production page and core controls load successfully; final independent end-to-end browser verification of all five scenarios has not been marked as complete.
+The complete suite passes 195 tests with 0 failures, including 24 injected Streamlit AppTest scenarios. Syntax checks and local Streamlit/ASGI page-load smoke checks also pass. Controlled live API checks cover the correct-workstation and supervisor-escalation scenarios. The production page and core controls load successfully; final independent end-to-end browser verification of all five scenarios has not been marked as complete.
 
 ## Brief Technical Questions
 
