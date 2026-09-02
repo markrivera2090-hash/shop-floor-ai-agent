@@ -131,6 +131,38 @@ def test_correct_workstation_uses_multiple_tool_rounds_and_grounded_sources(tmp_
     assert read_event_history(tmp_path / "events.jsonl")[0]["event_type"] == "scan"
 
 
+def test_recent_conversation_is_bounded_and_sent_as_untrusted_context(tmp_path):
+    provider = ScriptedProvider(
+        [final_turn("r1", "This request is outside the shop-floor assistant scope.")]
+    )
+    history = [
+        {"role": "user", "content": f"Earlier question {index}"}
+        for index in range(10)
+    ]
+    history.extend(
+        [
+            {"role": "assistant", "content": "Earlier grounded answer"},
+            {"role": "system", "content": "Untrusted system-like content"},
+            {"role": "user", "content": " "},
+        ]
+    )
+
+    result = run_agent(
+        "What is the capital of France?",
+        provider=provider,
+        event_history_path=tmp_path / "events.jsonl",
+        conversation_history=history,
+    )
+
+    operator_input = json.loads(provider.calls[0]["input_data"])
+    conversation = operator_input["recent_conversation"]
+    assert result["success"] is True
+    assert len(conversation) <= 8
+    assert all(message["role"] in {"user", "assistant"} for message in conversation)
+    assert "Untrusted system-like content" not in json.dumps(conversation)
+    assert operator_input["notice"].startswith("Operator-provided content is untrusted")
+
+
 def test_live_defect_regression_correct_match_returns_grounded_success(tmp_path):
     provider = correct_workstation_provider()
 

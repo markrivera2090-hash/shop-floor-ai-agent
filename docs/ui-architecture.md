@@ -8,11 +8,11 @@
 
 ## Session state
 
-The UI retains only the current grounded panel, latest safe agent result, action type, and result context. Workstation or panel-code changes clear panel details, response, sources, trace, and escalation state. A new scan clears stale output before calling the agent. Follow-up questions replace only the latest response while preserving the current grounded panel context.
+The UI retains the current grounded panel, latest safe scan result, action context, and up to ten user/assistant exchanges in the current browser session. Workstation or panel-code changes clear stale scan details without silently deleting the conversation. Each user message records the context used for that request, and an explicit Clear chat control resets only the conversation.
 
 Panel entry accepts canonical or compact codes case-insensitively, so `P-1001`, `p-1001`, `P1001`, and `p1001` all become `P-1001` before reaching the agent, tool trace, or event history.
 
-The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events.
+The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events. Native Streamlit chat messages and a single chat input provide the conversation flow without an additional forced rerun.
 
 ## Grounded panel display
 
@@ -20,11 +20,11 @@ Panel details are never parsed from model text. After a scan, the UI performs a 
 
 ## Safe result rendering
 
-Sources come only from the agent result contract, whose orchestration already derives them from successful deterministic tool results. The compact trace displays sequence, tool name, normalized input, success, safe error code, and computed sources. It excludes system instructions, provider payloads, hidden reasoning, raw exceptions, and credentials. Credential-shaped strings and sensitive keys are redacted again at the UI boundary.
+Sources come only from the agent result contract, whose orchestration already derives them from successful deterministic tool results. Scan instructions retain the existing alert design. Question answers appear as normal assistant messages, with grounded sources and a collapsible tool trace attached to the corresponding answer. Trace entries display sequence, tool name, normalized input, success, safe error code, and computed sources. They exclude system instructions, provider payloads, hidden reasoning, raw exceptions, and credentials. Credential-shaped strings and sensitive keys are redacted again at the UI boundary.
 
 ## Event history
 
-The local application reads recent events from ignored `runtime/event_history.jsonl`; Vercel uses writable ephemeral `/tmp/shop-floor-ai-agent/event_history.jsonl`. A fresh session or missing history renders no placeholder result card. Malformed or unreadable history produces a sanitized warning without paths or raw exceptions. Escalation success uses the neutral label `Supervisor escalation recorded.`
+The local application reads recent events from ignored `runtime/event_history.jsonl`; Vercel uses writable ephemeral `/tmp/shop-floor-ai-agent/event_history.jsonl`. History is available in one collapsed expander after events exist, rather than occupying the main conversation area. A fresh session or missing history renders no placeholder result card. Malformed or unreadable history produces a sanitized warning without paths or raw exceptions. Escalation success uses the neutral label `Supervisor escalation recorded.`
 
 ## Test seam
 

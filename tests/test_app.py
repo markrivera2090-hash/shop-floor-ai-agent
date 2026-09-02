@@ -239,9 +239,7 @@ def _scan(app, panel_code, workstation_label="EDGE-01 — Edge Banding"):
 
 
 def _ask(app, question):
-    app.text_area[0].set_value(question)
-    app.run()
-    _button(app, "Ask Agent").click()
+    app.chat_input(key="agent_chat_input").set_value(question)
     return app.run()
 
 
@@ -257,7 +255,8 @@ def test_app_loads_with_title_controls_and_both_workstations(tmp_path):
     assert app.text_input[0].label == "Panel code"
     assert app.checkbox(key="use_question_context").value is True
     assert "Question context: No panel code · Workstation EDGE-01" in _visible_text(app)
-    assert {button.label for button in app.button} >= {"Scan Panel", "Ask Agent"}
+    assert {button.label for button in app.button} >= {"Scan Panel", "Clear chat"}
+    assert app.chat_input(key="agent_chat_input").placeholder.startswith("Ask about")
     assert "No grounded panel details" not in _visible_text(app)
     assert "Scan a panel or ask a question" not in _visible_text(app)
     assert "No scan, question, or escalation history" not in _visible_text(app)
@@ -519,13 +518,51 @@ def test_invalid_empty_scan_does_not_call_agent_or_keep_stale_state(tmp_path):
     assert "Enter a panel code" in _visible_text(app)
 
 
-def test_question_and_scan_results_are_visibly_distinguished(tmp_path):
+def test_question_uses_chat_messages_without_replacing_scan_instructions(tmp_path):
     app, _ = _make_app(tmp_path)
     app = _scan(app, "P-1001")
     assert "Scan result" in _visible_text(app)
 
     app = _ask(app, "What spindle speed should I use?")
-    assert "Question result" in _visible_text(app)
+    assert "Scan result" in _visible_text(app)
+    assert "Question result" not in _visible_text(app)
+    assert [message.name for message in app.chat_message] == ["user", "assistant"]
+    assert len(app.session_state["chat_messages"]) == 2
+
+
+def test_clear_chat_removes_conversation_without_extra_agent_call(tmp_path):
+    app, backend = _make_app(tmp_path)
+    app = _ask(app, "What spindle speed should I use?")
+    assert len(backend.calls) == 1
+    assert app.session_state["chat_messages"]
+
+    _button(app, "Clear chat").click()
+    app.run()
+
+    assert app.session_state["chat_messages"] == []
+    assert not app.chat_message
+    assert len(backend.calls) == 1
+
+
+def test_chat_passes_recent_conversation_to_follow_up_request(tmp_path):
+    app, backend = _make_app(tmp_path)
+    app = _ask(app, "What spindle speed should I use?")
+    app = _ask(app, "What does the SOP say about that parameter?")
+
+    assert len(backend.calls) == 2
+    assert backend.calls[0]["conversation_history"] == []
+    second_history = backend.calls[1]["conversation_history"]
+    assert [message["role"] for message in second_history] == ["user", "assistant"]
+    assert second_history[0]["content"] == "What spindle speed should I use?"
+    assert "unavailable" in second_history[1]["content"].lower()
+    assert len(app.session_state["chat_messages"]) == 4
+    assert [message.name for message in app.chat_message] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert len(app.chat_input) == 1
 
 
 def test_sources_come_from_result_contract_not_model_citation_text(tmp_path):
@@ -627,6 +664,7 @@ def test_app_source_uses_real_runner_default_but_no_browser_test_switch():
     assert 'st.App(str(Path(__file__).resolve().with_name("streamlit_app.py")))' in app_source
     assert "render_app(" in script_source
     assert "TEST_MODE" not in source + app_source + script_source
+    assert "st.rerun()" not in source
     assert "OPENAI_API_KEY" not in storable_session_keys(source)
 
 

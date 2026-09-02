@@ -33,8 +33,10 @@ def _initial_state() -> dict[str, Any]:
     return {
         "current_panel": None,
         "latest_result": None,
+        "latest_scan_result": None,
         "latest_action": None,
         "result_context": None,
+        "chat_messages": [],
     }
 
 
@@ -45,8 +47,19 @@ def _ensure_state() -> None:
 
 
 def _clear_result_state() -> None:
-    for key, value in _initial_state().items():
-        st.session_state[key] = value
+    initial = _initial_state()
+    for key in (
+        "current_panel",
+        "latest_result",
+        "latest_scan_result",
+        "latest_action",
+        "result_context",
+    ):
+        st.session_state[key] = initial[key]
+
+
+def _clear_chat_state() -> None:
+    st.session_state.chat_messages = []
 
 
 def _selected_workstation_id() -> str:
@@ -174,9 +187,10 @@ def _run_request(
     request: str,
     request_type: str,
     panel_code: str | None,
-    workstation_id: str,
+    workstation_id: str | None,
     event_history_path: str | Path | None,
-) -> None:
+    conversation_history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
     if request_type == "scan":
         _clear_result_state()
     else:
@@ -190,6 +204,7 @@ def _run_request(
             workstation_id=workstation_id,
             request_type=request_type,
             event_history_path=event_history_path,
+            conversation_history=conversation_history,
         )
     except Exception:
         raw_result = None
@@ -210,11 +225,31 @@ def _run_request(
 
     st.session_state.current_panel = panel
     st.session_state.latest_result = result
+    if request_type == "scan":
+        st.session_state.latest_scan_result = result
     st.session_state.latest_action = request_type
     st.session_state.result_context = {
         "panel_code": panel_code,
         "workstation_id": workstation_id,
     }
+    return result
+
+
+def _conversation_for_agent(messages: Any) -> list[dict[str, str]]:
+    if not isinstance(messages, list):
+        return []
+    conversation: list[dict[str, str]] = []
+    for message in messages[-16:]:
+        if not isinstance(message, dict):
+            continue
+        role = message.get("role")
+        if role == "user" and isinstance(message.get("content"), str):
+            conversation.append({"role": "user", "content": message["content"]})
+        elif role == "assistant" and isinstance(message.get("result"), dict):
+            response = message["result"].get("response")
+            if isinstance(response, str) and response.strip():
+                conversation.append({"role": "assistant", "content": response})
+    return conversation[-8:]
 
 
 def _render_panel(panel: dict[str, Any] | None, workstation_id: str) -> None:
@@ -250,24 +285,7 @@ def _render_panel(panel: dict[str, Any] | None, workstation_id: str) -> None:
         )
 
 
-def _render_result(result: dict[str, Any] | None, action: str | None) -> None:
-    st.subheader("Agent instructions")
-    if result is None:
-        return
-
-    action_label = "Scan result" if action == "scan" else "Question result"
-    st.caption(action_label)
-    response = str(result.get("response", "The request could not be completed safely."))
-    if result.get("escalated"):
-        st.warning(response)
-    elif result.get("success"):
-        st.success(response)
-    else:
-        st.error(response)
-        error = result.get("error")
-        if isinstance(error, dict):
-            st.caption(f"Safe error: {error.get('code', 'agent_error')}")
-
+def _render_sources_and_trace(result: dict[str, Any]) -> None:
     st.subheader("Sources")
     sources = result.get("sources", [])
     if sources:
@@ -297,6 +315,62 @@ def _render_result(result: dict[str, Any] | None, action: str | None) -> None:
                 )
 
 
+def _render_result(result: dict[str, Any] | None, action: str | None) -> None:
+    st.subheader("Agent instructions")
+    if result is None:
+        return
+
+    action_label = "Scan result" if action == "scan" else "Question result"
+    st.caption(action_label)
+    response = str(result.get("response", "The request could not be completed safely."))
+    if result.get("escalated"):
+        st.warning(response)
+    elif result.get("success"):
+        st.success(response)
+    else:
+        st.error(response)
+        error = result.get("error")
+        if isinstance(error, dict):
+            st.caption(f"Safe error: {error.get('code', 'agent_error')}")
+
+    _render_sources_and_trace(result)
+
+
+def _render_chat_result(result: dict[str, Any]) -> None:
+    response = str(result.get("response", "The request could not be completed safely."))
+    if result.get("success"):
+        st.markdown(response)
+    else:
+        st.error(response)
+        error = result.get("error")
+        if isinstance(error, dict):
+            st.caption(f"Safe error: {error.get('code', 'agent_error')}")
+
+    sources = result.get("sources", [])
+    if sources:
+        st.caption("Sources: " + ", ".join(f"`{source}`" for source in sources))
+
+    trace = result.get("trace", [])
+    if trace:
+        with st.expander("Tool trace"):
+            for index, entry in enumerate(trace, start=1):
+                if not isinstance(entry, dict):
+                    continue
+                success = entry.get("success") is True
+                icon = "✓" if success else "✗"
+                sequence = entry.get("sequence", index)
+                tool_name = entry.get("tool", "unknown_tool")
+                st.markdown(f"{icon} **{sequence}. {tool_name}**")
+                st.json(entry.get("input", {}), expanded=False)
+                if entry.get("sources"):
+                    st.caption("Sources: " + ", ".join(entry["sources"]))
+                if not success and isinstance(entry.get("error"), dict):
+                    st.caption(
+                        "Safe error: "
+                        + str(entry["error"].get("code", "tool_error"))
+                    )
+
+
 def _safe_event(event: Any) -> dict[str, Any] | None:
     if not isinstance(event, dict):
         return None
@@ -316,7 +390,6 @@ def _render_history(
     history_reader: Callable[..., list[dict[str, Any]]],
     event_history_path: str | Path | None,
 ) -> None:
-    st.subheader("Event history")
     try:
         events = history_reader(event_history_path, limit=20)
     except (EventHistoryError, OSError, ValueError, TypeError):
@@ -330,7 +403,8 @@ def _render_history(
     safe_events = [event for event in safe_events if event is not None]
     if not safe_events:
         return
-    st.dataframe(list(reversed(safe_events)), width="stretch", hide_index=True)
+    with st.expander("Event history"):
+        st.dataframe(list(reversed(safe_events)), width="stretch", hide_index=True)
 
 
 def render_app(
@@ -382,7 +456,7 @@ def render_app(
         workstation_id = _selected_workstation_id()
         if panel_code is None:
             _clear_result_state()
-            st.session_state.latest_result = _safe_result(
+            invalid_result = _safe_result(
                 {
                     "success": False,
                     "response": "Enter a panel code before scanning.",
@@ -392,6 +466,8 @@ def render_app(
                     "error": {"code": "invalid_input"},
                 }
             )
+            st.session_state.latest_result = invalid_result
+            st.session_state.latest_scan_result = invalid_result
             st.session_state.latest_action = "scan"
         else:
             _run_request(
@@ -409,7 +485,7 @@ def render_app(
 
     current_workstation = _selected_workstation_id()
     _render_panel(st.session_state.current_panel, current_workstation)
-    _render_result(st.session_state.latest_result, st.session_state.latest_action)
+    _render_result(st.session_state.latest_scan_result, "scan")
 
     st.subheader("Ask the agent")
     current_panel = st.session_state.current_panel
@@ -437,28 +513,83 @@ def render_app(
     else:
         st.caption("Question context: None · general SOP question")
 
-    with st.form("ask_agent_form", clear_on_submit=True):
-        question = st.text_area(
-            "Follow-up question",
-            placeholder=(
-                "Ask about this panel, its SOP, an unsupported parameter, or a label mismatch"
-            ),
+    st.button(
+        "Clear chat",
+        icon=":material/delete_sweep:",
+        on_click=_clear_chat_state,
+    )
+
+    with st.container(border=True):
+        transcript = st.container()
+        question = st.chat_input(
+            "Ask about a panel, approved SOP guidance, or a shop-floor issue",
+            key="agent_chat_input",
+            submit_mode="disable",
         )
-        ask_submitted = st.form_submit_button("Ask Agent", width="stretch")
-    if ask_submitted:
-        normalized_question = question.strip()
-        if not normalized_question:
-            st.warning("Enter a question before asking the agent.")
-        else:
-            _run_request(
-                agent_runner=agent_runner,
-                panel_lookup=panel_lookup,
-                request=normalized_question,
-                request_type="question",
-                panel_code=question_panel_code if use_question_context else None,
-                workstation_id=current_workstation if use_question_context else None,
-                event_history_path=event_history_path,
-            )
-            st.rerun()
+
+    with transcript:
+        for message in st.session_state.chat_messages:
+            if not isinstance(message, dict):
+                continue
+            role = message.get("role")
+            if role == "user":
+                with st.chat_message("user"):
+                    st.markdown(str(message.get("content", "")))
+                    if message.get("context"):
+                        st.caption(str(message["context"]))
+            elif role == "assistant" and isinstance(message.get("result"), dict):
+                with st.chat_message("assistant"):
+                    _render_chat_result(message["result"])
+
+        if question:
+            normalized_question = question.strip()
+            if not normalized_question:
+                st.warning("Enter a question before asking the agent.")
+            else:
+                selected_panel = question_panel_code if use_question_context else None
+                selected_workstation = (
+                    current_workstation if use_question_context else None
+                )
+                context_label = (
+                    f"Context: {panel_context_label} · Workstation {current_workstation}"
+                    if use_question_context
+                    else "Context: General SOP question"
+                )
+                safe_question = str(_safe_value(normalized_question))
+                user_message = {
+                    "role": "user",
+                    "content": safe_question,
+                    "context": context_label,
+                }
+                st.session_state.chat_messages.append(user_message)
+                with st.chat_message("user"):
+                    st.markdown(safe_question)
+                    st.caption(context_label)
+
+                with st.chat_message("assistant"):
+                    with st.status(
+                        ":shimmer[Checking approved records]", type="compact"
+                    ) as request_status:
+                        result = _run_request(
+                            agent_runner=agent_runner,
+                            panel_lookup=panel_lookup,
+                            request=normalized_question,
+                            request_type="question",
+                            panel_code=selected_panel,
+                            workstation_id=selected_workstation,
+                            event_history_path=event_history_path,
+                            conversation_history=_conversation_for_agent(
+                                st.session_state.chat_messages[:-1]
+                            ),
+                        )
+                        request_status.update(
+                            label="Checked approved records", state="complete"
+                        )
+                    _render_chat_result(result)
+
+                st.session_state.chat_messages.append(
+                    {"role": "assistant", "result": result}
+                )
+                st.session_state.chat_messages = st.session_state.chat_messages[-20:]
 
     _render_history(history_reader, event_history_path)

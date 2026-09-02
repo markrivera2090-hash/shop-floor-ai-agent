@@ -9,7 +9,7 @@
 
 ## Project Overview
 
-Shop-Floor AI Agent is a grounded assistant for two fictional manufacturing workstations: Edge Banding and Drilling. Operators can select a workstation, scan a panel, review approved production facts, ask contextual or general SOP questions, inspect the agent's tool trace, and review recorded events.
+Shop-Floor AI Agent is a grounded assistant for two fictional manufacturing workstations: Edge Banding and Drilling. Operators can select a workstation, scan a panel, review approved production facts, use a normal conversational chat for contextual or general SOP questions, inspect each answer's tool trace, and review recorded events.
 
 ## Current Status
 
@@ -70,7 +70,7 @@ The same application code runs locally and on Vercel. Additional design details 
 - ☑ Unknown Panel
 - ☑ Supervisor Escalation
 
-The automated suite currently passes **208 tests with 0 failures**, including **27 Streamlit AppTest scenarios**. It also covers tool selection, multi-tool workflows, irrelevant-question handling, panel-code normalization, safe failures, source attribution, event recording, and non-duplicated escalation messaging.
+The automated suite currently passes **211 tests with 0 failures**, including **29 Streamlit AppTest scenarios**. It also covers tool selection, multi-tool workflows, conversational follow-ups, irrelevant-question handling, panel-code normalization, safe failures, source attribution, event recording, and non-duplicated escalation messaging.
 
 ## Brief Technical Questions
 
