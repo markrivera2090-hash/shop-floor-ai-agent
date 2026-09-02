@@ -1,0 +1,56 @@
+{
+  "panels": [
+    {
+      "panel_code": "P-1001",
+      "cabinet_id": "CAB-2001",
+      "panel_name": "Base Cabinet Left Side",
+      "dimensions_mm": {
+        "length": 720,
+        "width": 560,
+        "thickness": 18
+      },
+      "material": "White melamine-faced particleboard",
+      "required_operation": "edge_banding",
+      "required_workstation_id": "EDGE-01"
+    },
+    {
+      "panel_code": "P-1002",
+      "cabinet_id": "CAB-2002",
+      "panel_name": "Drawer Front",
+      "dimensions_mm": {
+        "length": 596,
+        "width": 180,
+        "thickness": 18
+      },
+      "material": "Fictional oak-effect MDF",
+      "required_operation": "edge_banding",
+      "required_workstation_id": "EDGE-01"
+    },
+    {
+      "panel_code": "P-1003",
+      "cabinet_id": "CAB-2001",
+      "panel_name": "Adjustable Shelf",
+      "dimensions_mm": {
+        "length": 564,
+        "width": 520,
+        "thickness": 18
+      },
+      "material": "White melamine-faced particleboard",
+      "required_operation": "drilling",
+      "required_workstation_id": "DRILL-01"
+    },
+    {
+      "panel_code": "P-1004",
+      "cabinet_id": "CAB-2003",
+      "panel_name": "Wall Cabinet Right Side",
+      "dimensions_mm": {
+        "length": 700,
+        "width": 320,
+        "thickness": 18
+      },
+      "material": "Fictional light-grey laminate board",
+      "required_operation": "drilling",
+      "required_workstation_id": "DRILL-01"
+    }
+  ]
+}

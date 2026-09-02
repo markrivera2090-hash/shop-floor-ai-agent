@@ -1,0 +1,28 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local runtime output
+*.log
+logs/
+runtime/
+event_history/
+event-history/
+event_history*.jsonl
+event-history*.jsonl
+
+# macOS
+.DS_Store

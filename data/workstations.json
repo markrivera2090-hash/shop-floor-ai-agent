@@ -1,0 +1,28 @@
+{
+  "workstations": [
+    {
+      "workstation_id": "EDGE-01",
+      "name": "Edge Banding",
+      "supported_operation": "edge_banding",
+      "description": "Fictional assessment workstation for panels whose system record requires edge banding.",
+      "required_checks": [
+        "Confirm the physical panel code matches the code being checked.",
+        "Confirm the panel record requires edge banding at EDGE-01.",
+        "Review the system record for visible discrepancies before proceeding.",
+        "Stop and report any mismatch or missing information."
+      ]
+    },
+    {
+      "workstation_id": "DRILL-01",
+      "name": "Drilling",
+      "supported_operation": "drilling",
+      "description": "Fictional assessment workstation for panels whose system record requires drilling.",
+      "required_checks": [
+        "Confirm the physical panel code matches the code being checked.",
+        "Confirm the panel record requires drilling at DRILL-01.",
+        "Review the system record for visible discrepancies before proceeding.",
+        "Stop and report any mismatch or missing information."
+      ]
+    }
+  ]
+}
