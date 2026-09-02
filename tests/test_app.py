@@ -98,14 +98,15 @@ def _unsupported_result():
     return {
         "success": True,
         "response": (
-            "The spindle speed is unavailable in approved sources. Consult approved "
-            "documentation or a supervisor; do not guess."
+            "The spindle speed is unavailable in approved sources. Do not guess. "
+            "Supervisor escalation recorded."
         ),
-        "sources": ["SOP-UNSUPPORTED-001"],
+        "sources": ["SOP-UNSUPPORTED-001", "SOP-ESCALATION-001"],
         "trace": [
-            _trace("search_sop", 1, sources=["SOP-UNSUPPORTED-001"], tool_input={"query": "spindle speed"})
+            _trace("search_sop", 1, sources=["SOP-UNSUPPORTED-001"], tool_input={"query": "spindle speed"}),
+            _trace("escalate_to_supervisor", 2, sources=["SOP-ESCALATION-001"]),
         ],
-        "escalated": False,
+        "escalated": True,
         "model": "mock-model",
         "error": None,
     }
@@ -114,10 +115,7 @@ def _unsupported_result():
 def _escalation_result():
     return {
         "success": True,
-        "response": (
-            "Do not process. Supervisor escalation simulated successfully and recorded "
-            "as an assessment event. This demo does not contact a real supervisor."
-        ),
+        "response": "Do not process. Supervisor escalation recorded.",
         "sources": ["SOP-MISMATCH-001", "SOP-ESCALATION-001"],
         "trace": [
             _trace("search_sop", 1, sources=["SOP-MISMATCH-001"]),
@@ -152,6 +150,16 @@ class FakeBackend:
             )
             return _escalation_result()
         if "spindle speed" in request.lower():
+            self.events.append(
+                {
+                    "timestamp_utc": "2026-09-02T00:00:00Z",
+                    "event_type": "escalation",
+                    "panel_code": kwargs.get("panel_code"),
+                    "workstation_id": kwargs.get("workstation_id"),
+                    "message": "Supervisor escalation recorded",
+                    "metadata": {"simulated": True},
+                }
+            )
             return _unsupported_result()
         if kwargs.get("panel_code") == "P-9999":
             return _unknown_result()
@@ -300,6 +308,16 @@ def test_scan_calls_injected_runner_once_with_context(tmp_path):
     assert not app.exception
 
 
+@pytest.mark.parametrize("entered_code", ["p-1001", "P1001", "p1001"])
+def test_scan_normalizes_supported_panel_code_variants(tmp_path, entered_code):
+    app, backend = _make_app(tmp_path)
+    app = _scan(app, entered_code)
+
+    assert backend.calls[0]["panel_code"] == "P-1001"
+    assert app.session_state["current_panel"]["panel_code"] == "P-1001"
+    assert "Panel P-1001" in _visible_text(app)
+
+
 def test_correct_scan_displays_grounded_panel_sources_and_multitool_trace(tmp_path):
     app, _ = _make_app(tmp_path)
     app = _scan(app, "P-1001")
@@ -400,7 +418,7 @@ def test_general_question_mode_omits_panel_and_workstation_from_call_and_event(t
     assert call["workstation_id"] is None
     assert backend.events[-1]["panel_code"] is None
     assert backend.events[-1]["workstation_id"] is None
-    assert "supervisor escalation simulated successfully" in _visible_text(app).lower()
+    assert "supervisor escalation recorded" in _visible_text(app).lower()
 
 
 def test_unknown_panel_clears_prior_details_and_shows_failed_trace(tmp_path):
@@ -416,15 +434,15 @@ def test_unknown_panel_clears_prior_details_and_shows_failed_trace(tmp_path):
     assert "base cabinet left side" not in text
 
 
-def test_physical_label_mismatch_is_simulated_in_result_trace_and_history(tmp_path):
+def test_physical_label_mismatch_is_escalated_in_result_trace_and_history(tmp_path):
     app, backend = _make_app(tmp_path)
     app = _scan(app, "P-1001")
     app = _ask(app, "The physical panel label does not match the system information.")
     text = _visible_text(app).lower()
 
     assert "do not process" in text
-    assert "supervisor escalation simulated successfully" in text
-    assert "this demo does not contact a real supervisor" in text
+    assert "supervisor escalation recorded" in text
+    assert text.count("supervisor escalation recorded") == 1
     assert "escalate_to_supervisor" in text
     assert backend.events[0]["event_type"] == "escalation"
     assert backend.events[0]["metadata"]["simulated"] is True

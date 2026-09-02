@@ -10,6 +10,8 @@
 
 The UI retains only the current grounded panel, latest safe agent result, action type, and result context. Workstation or panel-code changes clear panel details, response, sources, trace, and escalation state. A new scan clears stale output before calling the agent. Follow-up questions replace only the latest response while preserving the current grounded panel context.
 
+Panel entry accepts canonical or compact codes case-insensitively, so `P-1001`, `p-1001`, `P1001`, and `p1001` all become `P-1001` before reaching the agent, tool trace, or event history.
+
 The question area displays the exact panel and workstation context that will be sent to the agent. A default-on checkbox keeps panel questions fast and contextual. Operators can turn it off for a general SOP question; in that mode both identifiers are passed as `None`, so they are not automatically attached to question or escalation events.
 
 ## Grounded panel display
@@ -32,6 +34,6 @@ The local application reads recent events from ignored `runtime/event_history.js
 
 This is a single-user, no-auth local assessment demo. It has no database, production machine connection, or real supervisor integration. Final independent five-scenario browser verification remains pending.
 
-## Hosted demo boundary
+## Hosted boundary
 
 Vercel imports the root `app.py`, which exposes `streamlit_app.py` through `st.App` without a catch-all rewrite. The hosted function points event history at `/tmp/shop-floor-ai-agent/event_history.jsonl`. This makes writes possible without committing runtime data, but `/tmp` is ephemeral and history may reset across function instances or deployments. The Vercel deployment is therefore a reviewer demo, not durable production storage.

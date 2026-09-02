@@ -10,6 +10,7 @@ from typing import Any
 from src.openai_provider import create_openai_provider
 from src.prompts import SYSTEM_INSTRUCTIONS
 from src.tool_registry import TOOL_SCHEMAS, ToolExecutionContext, dispatch_tool
+from src.tools import normalize_panel_code
 
 
 MAX_REQUEST_LENGTH = 2_000
@@ -19,8 +20,24 @@ MAX_TOTAL_TOOL_CALLS = 12
 MAX_TOOL_RESULT_CHARS = 12_000
 
 _PRODUCTION_TERMS = re.compile(
-    r"\b(panel|workstation|edge band|drill|spindle|feed rate|tooling|machine|"
-    r"safety|process|proceed|operate|setting|instruction)\b",
+    r"\b(panel|panel code|workstation|edge band|banding|drill|drilling|spindle|"
+    r"feed rate|tooling|machine|sop|cabinet|material|dimension|label|quality|"
+    r"defect|adhesive|production|safety|process|proceed|operate|operation|"
+    r"setting|instruction|supervisor|escalat)\w*\b",
+    re.IGNORECASE,
+)
+_CONTEXTUAL_PRODUCTION_TERMS = re.compile(
+    r"\b(this|current|selected)\s+(panel|workstation|record|job)\b|"
+    r"\b(can\s+i\s+proceed|what\s+should\s+i\s+do|next\s+step)\b",
+    re.IGNORECASE,
+)
+_PRODUCTION_IDENTIFIER = re.compile(
+    r"\b(?:P-?\d{4}|EDGE-\d{2}|DRILL-\d{2})\b",
+    re.IGNORECASE,
+)
+_OUT_OF_SCOPE_MODEL_TERMS = re.compile(
+    r"\b(outside|out of)\s+(?:the\s+)?(?:service'?s\s+)?scope\b|"
+    r"\bnot\s+(?:related|relevant)\s+to\s+(?:the\s+)?shop[- ]floor\b",
     re.IGNORECASE,
 )
 _UNSUPPORTED_PARAMETER_TERMS = re.compile(
@@ -35,6 +52,20 @@ _PHYSICAL_MISMATCH_TERMS = re.compile(
     re.IGNORECASE,
 )
 _NUMERIC_VALUE = re.compile(r"\b\d+(?:\.\d+)?\b")
+_UNAVAILABLE_GROUNDING_ERRORS = frozenset(
+    {
+        "data_source_error",
+        "panel_not_found",
+        "sop_no_match",
+        "sop_parse_error",
+        "tool_execution_failed",
+        "workstation_not_found",
+    }
+)
+_OUT_OF_SCOPE_RESPONSE = (
+    "That request is outside this shop-floor assistant's scope. I can help with "
+    "panels, workstations, production records, and the approved SOP."
+)
 
 
 def _agent_result(
@@ -76,6 +107,18 @@ def _normalize_optional_identifier(value: Any) -> tuple[str | None, bool]:
         return None, True
     normalized = _normalize_required_string(value, MAX_IDENTIFIER_LENGTH)
     return normalized, normalized is not None
+
+
+def _is_shop_floor_relevant(
+    request: str,
+    panel_code: str | None,
+    workstation_id: str | None,
+) -> bool:
+    if _PRODUCTION_TERMS.search(request) or _PRODUCTION_IDENTIFIER.search(request):
+        return True
+    return bool(
+        (panel_code or workstation_id) and _CONTEXTUAL_PRODUCTION_TERMS.search(request)
+    )
 
 
 def _operator_input(
@@ -273,12 +316,17 @@ def _apply_safety_gate(
     if escalated:
         claims_real_contact = any(
             phrase in response_lower
-            for phrase in ("supervisor was contacted", "contacted the supervisor", "has been contacted")
-        ) and "no real supervisor" not in response_lower
-        if "simulated" not in response_lower or claims_real_contact:
+            for phrase in (
+                "supervisor was contacted",
+                "contacted the supervisor",
+                "has been contacted",
+                "notified the supervisor",
+                "supervisor has been notified",
+            )
+        )
+        if "escalation" not in response_lower or claims_real_contact:
             return _safe_guard_failure(
-                "A simulated escalation was recorded for this assessment. "
-                "No real supervisor was contacted.",
+                "Supervisor escalation recorded.",
                 sources,
                 trace,
                 escalated,
@@ -316,7 +364,8 @@ def run_agent(
 
     normalized_request = _normalize_required_string(request, MAX_REQUEST_LENGTH)
     normalized_request_type = _normalize_required_string(request_type, 16)
-    normalized_panel_code, panel_valid = _normalize_optional_identifier(panel_code)
+    normalized_panel_code = normalize_panel_code(panel_code)
+    panel_valid = panel_code is None or normalized_panel_code is not None
     normalized_workstation_id, workstation_valid = _normalize_optional_identifier(
         workstation_id
     )
@@ -378,6 +427,11 @@ def run_agent(
         if event_history_path is not None
         else None
     )
+    request_is_relevant = _is_shop_floor_relevant(
+        normalized_request,
+        normalized_panel_code,
+        normalized_workstation_id,
+    )
 
     for _turn in range(max_model_turns):
         try:
@@ -437,6 +491,15 @@ def run_agent(
             )
 
         if function_calls:
+            if not request_is_relevant:
+                return _agent_result(
+                    success=True,
+                    response=_OUT_OF_SCOPE_RESPONSE,
+                    sources=[],
+                    trace=[],
+                    escalated=False,
+                    model=model,
+                )
             if total_tool_calls + len(function_calls) > max_total_tool_calls:
                 return _agent_result(
                     success=False,
@@ -524,7 +587,44 @@ def run_agent(
             )
 
         final_response = output_text.strip()
-        if _PHYSICAL_MISMATCH_TERMS.search(normalized_request) and not escalated:
+        if not request_is_relevant:
+            return _agent_result(
+                success=True,
+                response=_OUT_OF_SCOPE_RESPONSE,
+                sources=[],
+                trace=[],
+                escalated=False,
+                model=model,
+            )
+        if not tool_results and _OUT_OF_SCOPE_MODEL_TERMS.search(final_response):
+            return _agent_result(
+                success=True,
+                response=_OUT_OF_SCOPE_RESPONSE,
+                sources=[],
+                trace=[],
+                escalated=False,
+                model=model,
+            )
+
+        panel_not_found = any(
+            result["tool"] == "get_panel"
+            and not result["success"]
+            and result["error"]["code"] == "panel_not_found"
+            for result in tool_results
+        )
+        unavailable_grounding = any(
+            not result["success"]
+            and isinstance(result.get("error"), dict)
+            and result["error"].get("code") in _UNAVAILABLE_GROUNDING_ERRORS
+            for result in tool_results
+        )
+        escalation_required = (
+            bool(_PHYSICAL_MISMATCH_TERMS.search(normalized_request))
+            or bool(_UNSUPPORTED_PARAMETER_TERMS.search(normalized_request))
+            or unavailable_grounding
+            or not grounded_sources
+        )
+        if escalation_required and not escalated:
             if total_tool_calls >= max_total_tool_calls:
                 return _agent_result(
                     success=False,
@@ -543,13 +643,17 @@ def run_agent(
             escalation_result = dispatch_tool(
                 "escalate_to_supervisor",
                 {
-                    "reason": "Physical panel label conflicts with system information",
+                    "reason": (
+                        "Physical panel label conflicts with system information"
+                        if _PHYSICAL_MISMATCH_TERMS.search(normalized_request)
+                        else "Approved shop-floor information is unavailable or inconsistent"
+                    ),
                     "panel_code": normalized_panel_code,
                     "workstation_id": normalized_workstation_id,
                     "context": {
-                        "issue": "physical_panel_label_mismatch",
-                        "observed": "Operator reported a physical-label discrepancy",
-                        "expected": "Physical label and system information must match",
+                        "issue": "unresolved_shop_floor_request",
+                        "observed": "Available approved information did not resolve the request",
+                        "expected": "Grounded production data or SOP guidance",
                     },
                 },
                 context=execution_context,
@@ -571,17 +675,32 @@ def run_agent(
                     escalated=False,
                     model=model,
                     error_code="escalation_record_failed",
-                    error_message="The required simulated escalation could not be recorded.",
+                    error_message="The required escalation event could not be recorded.",
                 )
             for source in escalation_result["sources"]:
                 if source not in grounded_sources:
                     grounded_sources.append(source)
             escalated = True
-            final_response = (
-                "STOP — do not process the panel. Supervisor escalation simulated "
-                "successfully and recorded as an assessment event. This demo does not "
-                "contact a real supervisor."
-            )
+            if panel_not_found:
+                final_response = (
+                    "Panel Not Found. Do not process or invent panel details. "
+                    "Supervisor escalation recorded."
+                )
+            elif _PHYSICAL_MISMATCH_TERMS.search(normalized_request):
+                final_response = (
+                    "STOP — do not process the panel. Supervisor escalation recorded "
+                    "for the unresolved label mismatch."
+                )
+            elif _UNSUPPORTED_PARAMETER_TERMS.search(normalized_request):
+                final_response = (
+                    "That machine parameter is unavailable in the approved sources. "
+                    "Do not guess. Supervisor escalation recorded."
+                )
+            else:
+                final_response = (
+                    "The requested shop-floor guidance is unavailable in the approved "
+                    "sources. Stop and follow the supervisor escalation process."
+                )
         guard_failure = _apply_safety_gate(
             request=normalized_request,
             response=final_response,

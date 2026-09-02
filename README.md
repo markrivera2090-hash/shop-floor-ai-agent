@@ -14,7 +14,7 @@ The repository includes a Streamlit operator UI over the grounded OpenAI agent. 
 
 Production demo: [shop-floor-ai-agent-nu.vercel.app](https://shop-floor-ai-agent-nu.vercel.app)
 
-The hosted demo uses temporary event history that may reset between requests. For persistent local history, run the app locally at the loopback URL printed by Streamlit, normally `http://localhost:8501`.
+The hosted application uses temporary event history that may reset between requests. For persistent local history, run the app locally at the loopback URL printed by Streamlit, normally `http://localhost:8501`.
 
 ## Repository / Source Code
 
@@ -28,7 +28,7 @@ The controlled correct-workstation scenario was verified live with `gpt-5.6-sol`
 
 ## Agent Implementation Approach
 
-The LLM receives all five function definitions and selects tools through automatic function calling. A bounded orchestration loop executes only allowlisted deterministic tools, returns their results to the model, and supports additional tool rounds. A narrow safety backstop guarantees that an explicitly reported physical-label mismatch records the required simulated escalation if the model tries to answer without calling that tool; other scenarios remain model-directed. Sources and the safe execution trace are computed from actual tool results rather than model-written citations. The UI has an explicit dependency-injection seam so tests can supply in-memory runners without activating the production provider.
+The LLM receives all five function definitions and selects tools through automatic function calling. It first distinguishes shop-floor requests from unrelated questions. Relevant requests use grounded tools; when approved data cannot resolve a relevant request, a deterministic safety backstop records the required escalation. Unrelated requests receive a concise scope response without tools, history, or escalation. A bounded orchestration loop executes only allowlisted deterministic tools, returns their results to the model, and supports additional tool rounds. Sources and the safe execution trace are computed from actual tool results rather than model-written citations. The UI has an explicit dependency-injection seam so tests can supply in-memory runners without activating the production provider.
 
 ## Data Storage Approach
 
@@ -67,7 +67,7 @@ If configuration is missing, the UI still loads and reports `AI configuration un
 
 ## Architecture
 
-Streamlit calls the bounded agent, which calls the OpenAI provider and allowlisted deterministic tools over local JSON, Markdown, and ignored JSONL history. Session callbacks clear stale results after panel or workstation changes. Sources, trace fields, errors, and events are sanitized before display. Supervisor escalation is simulated and does not contact a real person.
+Streamlit calls the bounded agent, which calls the OpenAI provider and allowlisted deterministic tools over local JSON, Markdown, and ignored JSONL history. Session callbacks clear stale results after panel or workstation changes. Sources, trace fields, errors, and events are sanitized before display. Supervisor escalation is represented by a recorded assessment event.
 
 This is a no-auth, single-user local assessment demo. It is not connected to production machines, a production database, or a real supervisor channel. See `docs/agent-architecture.md` and `docs/ui-architecture.md` for the detailed boundaries.
 
@@ -81,7 +81,7 @@ The complete automated suite is run with:
 .venv/bin/python -m pytest
 ```
 
-The complete suite passes 195 tests with 0 failures, including 24 injected Streamlit AppTest scenarios. Syntax checks and local Streamlit/ASGI page-load smoke checks also pass. Controlled live API checks cover the correct-workstation and supervisor-escalation scenarios. The production page and core controls load successfully; final independent end-to-end browser verification of all five scenarios has not been marked as complete.
+The complete suite passes 208 tests with 0 failures, including 27 injected Streamlit AppTest scenarios. Syntax checks and local Streamlit/ASGI page-load smoke checks also pass. Controlled live API checks cover the correct-workstation and supervisor-escalation scenarios. The production page and core controls load successfully; final independent end-to-end browser verification of all five scenarios has not been marked as complete.
 
 ## Brief Technical Questions
 

@@ -119,7 +119,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "name": "escalate_to_supervisor",
         "description": (
-            "Create a simulated assessment escalation when facts are unavailable, "
+            "Record a supervisor escalation event when relevant facts are unavailable, "
             "records conflict, or the request cannot be resolved safely."
         ),
         "strict": True,

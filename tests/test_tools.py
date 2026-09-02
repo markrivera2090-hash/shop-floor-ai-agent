@@ -57,8 +57,21 @@ def test_empty_or_invalid_panel_input_is_rejected_safely(invalid_input):
     json.dumps(result)
 
 
-def test_panel_matching_is_exact_not_case_normalized():
-    assert get_panel("p-1001")["error"]["code"] == "panel_not_found"
+@pytest.mark.parametrize("panel_code", ["p-1001", "P1001", "p1001"])
+def test_panel_code_is_case_insensitive_and_accepts_optional_hyphen(panel_code):
+    result = get_panel(panel_code)
+
+    assert result["success"] is True
+    assert result["input"] == {"panel_code": "P-1001"}
+    assert result["data"]["panel_code"] == "P-1001"
+
+
+@pytest.mark.parametrize("panel_code", ["1001", "P-101", "PX-1001", "P_1001"])
+def test_panel_code_rejects_incorrect_formats(panel_code):
+    result = get_panel(panel_code)
+
+    assert result["success"] is False
+    assert result["error"]["code"] == "invalid_input"
 
 
 def test_known_workstation_returns_exact_record():
@@ -206,9 +219,7 @@ def test_escalation_is_simulated_and_cites_source(tmp_path):
 
     assert result["success"] is True
     assert result["data"]["status"] == "escalated"
-    assert "simulated" in result["data"]["message"].lower()
-    assert "supervisor escalation simulated successfully" in result["data"]["message"].lower()
-    assert "this demo does not contact a real supervisor" in result["data"]["message"].lower()
+    assert result["data"]["message"] == "Supervisor escalation recorded."
     assert result["sources"] == ["SOP-ESCALATION-001"]
 
 
@@ -245,7 +256,7 @@ def test_escalation_persistence_failure_does_not_claim_success(tmp_path):
     assert result["success"] is False
     assert result["data"] is None
     assert result["error"]["code"] == "escalation_record_failed"
-    assert "no supervisor was contacted" in result["error"]["message"].lower()
+    assert result["error"]["message"] == "The supervisor escalation event could not be recorded."
 
 
 def test_non_serializable_escalation_context_is_rejected(tmp_path):

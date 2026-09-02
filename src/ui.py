@@ -12,7 +12,7 @@ import streamlit as st
 
 from src.agent import run_agent
 from src.event_history import EventHistoryError, read_event_history
-from src.tools import get_panel
+from src.tools import get_panel, normalize_panel_code as _normalize_panel_code
 
 
 WORKSTATION_OPTIONS = {
@@ -52,13 +52,6 @@ def _clear_result_state() -> None:
 def _selected_workstation_id() -> str:
     label = st.session_state.get("workstation_label", next(iter(WORKSTATION_OPTIONS)))
     return WORKSTATION_OPTIONS.get(label, "EDGE-01")
-
-
-def _normalize_panel_code(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _safe_value(value: Any) -> Any:
@@ -269,10 +262,6 @@ def _render_result(result: dict[str, Any] | None, action: str | None) -> None:
     response = str(result.get("response", "The request could not be completed safely."))
     if result.get("escalated"):
         st.warning(response)
-        st.warning(
-            "Supervisor escalation simulated successfully — an assessment event was "
-            "recorded. This demo does not contact a real supervisor."
-        )
     elif result.get("success"):
         st.success(response)
     else:
@@ -365,13 +354,13 @@ def render_app(
     _ensure_state()
 
     st.title("Shop-Floor AI Agent")
-    st.caption("Junior AI engineer assessment · local fictional shop-floor demo")
+    st.caption("Junior AI engineer assessment · fictional shop-floor prototype")
     if ai_configured:
         st.success(f"AI configured · model: {_safe_value(configured_model)}")
     else:
         st.warning("AI configuration unavailable")
     if config.get("VERCEL"):
-        st.caption("Hosted demo · event history is temporary and may reset.")
+        st.caption("Hosted prototype · event history is temporary and may reset.")
 
     st.subheader("Scan controls")
     control_left, control_right = st.columns(2)
@@ -385,7 +374,7 @@ def render_app(
     with control_right:
         st.text_input(
             "Panel code",
-            placeholder="Enter P-1001 or an unknown code such as P-9999",
+            placeholder="Enter P-1001, P1001, or an unknown code such as P-9999",
             key="panel_code_input",
             on_change=_clear_result_state,
         )

@@ -15,7 +15,7 @@ Failures do not expose stack traces or private filesystem paths.
 
 ## Read-only tools
 
-- `get_panel(panel_code)` returns one exact JSON panel record and a source such as `Panel P-1001`. It does not perform fuzzy matching.
+- `get_panel(panel_code)` accepts `P-1001` or `P1001` case-insensitively, normalizes either form to canonical `P-1001`, and returns the exact matching JSON panel record and source. It does not perform fuzzy matching beyond this format normalization.
 - `get_workstation_requirements(workstation_id)` returns one exact JSON workstation record and a source such as `Workstation EDGE-01`. It does not infer requirements.
 - `search_sop(query)` parses level-two SOP headings and returns up to three ranked real sections using case-insensitive keyword matching and explicit terminology aliases.
 
@@ -24,7 +24,7 @@ Failures do not expose stack traces or private filesystem paths.
 - `record_event(event_type, message, panel_code=None, workstation_id=None, metadata=None)` appends one UTF-8 JSON object to `runtime/event_history.jsonl`.
 - `escalate_to_supervisor(reason, panel_code=None, workstation_id=None, context=None)` records an escalation event and returns `SOP-ESCALATION-001` as its source.
 
-Supervisor escalation is simulated for this assessment. The tool does not contact a real supervisor or invent a name, contact method, or response.
+Supervisor escalation is represented by an assessment event. The tool never invents a supervisor name, contact method, response, or confirmation of personal contact.
 
 ## Stable error codes
 

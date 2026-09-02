@@ -31,6 +31,8 @@
 
 Every panel's `required_workstation_id` must reference an existing workstation. Its `required_operation` must equal that workstation's `supported_operation`. Panel codes and workstation IDs must each be unique.
 
+Operator-entered panel codes are case-insensitive and may omit the hyphen. Inputs matching `P-1234` or `P1234` are normalized to canonical uppercase `P-1234`; other formats are rejected rather than guessed.
+
 ## SOP contract
 
 `sop/shop_floor_sop.md` must contain these stable source IDs:

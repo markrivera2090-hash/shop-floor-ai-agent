@@ -282,7 +282,115 @@ def test_unsupported_spindle_question_returns_no_numeric_setting(tmp_path):
 
     assert result["success"] is True
     assert "SOP-UNSUPPORTED-001" in result["sources"]
+    assert "SOP-ESCALATION-001" in result["sources"]
+    assert result["escalated"] is True
+    assert result["trace"][-1]["tool"] == "escalate_to_supervisor"
     assert not any(character.isdigit() for character in result["response"])
+
+
+def test_relevant_unavailable_sop_answer_triggers_escalation(tmp_path):
+    provider = ScriptedProvider(
+        [
+            tool_turn(
+                "r1",
+                ("c1", "search_sop", {"query": "hydraulic machine pressure"}),
+            ),
+            final_turn("r2", "That information is not available."),
+        ]
+    )
+
+    result = run_agent(
+        "What hydraulic machine pressure should I use?",
+        provider=provider,
+        event_history_path=tmp_path / "events.jsonl",
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is True
+    assert [entry["tool"] for entry in result["trace"]] == [
+        "search_sop",
+        "escalate_to_supervisor",
+    ]
+    assert result["trace"][0]["error"]["code"] == "sop_no_match"
+    assert result["sources"] == ["SOP-ESCALATION-001"]
+
+
+def test_irrelevant_question_is_declined_without_tools_or_escalation(tmp_path):
+    provider = ScriptedProvider(
+        [final_turn("r1", "Here is tomorrow's weather forecast.")]
+    )
+    history_path = tmp_path / "events.jsonl"
+
+    result = run_agent(
+        "What will the weather be tomorrow?",
+        panel_code="P-1001",
+        workstation_id="EDGE-01",
+        provider=provider,
+        event_history_path=history_path,
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is False
+    assert result["trace"] == []
+    assert result["sources"] == []
+    assert "outside this shop-floor assistant's scope" in result["response"].lower()
+    assert not history_path.exists()
+
+
+def test_model_can_identify_semantically_unrelated_request_without_escalation(tmp_path):
+    provider = ScriptedProvider(
+        [
+            final_turn(
+                "r1",
+                "Machine learning is outside the scope of this shop-floor service.",
+            )
+        ]
+    )
+
+    result = run_agent(
+        "Can you explain machine learning algorithms?",
+        provider=provider,
+        event_history_path=tmp_path / "events.jsonl",
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is False
+    assert result["trace"] == []
+    assert "outside this shop-floor assistant's scope" in result["response"].lower()
+
+
+def test_irrelevant_question_cannot_execute_model_requested_escalation(tmp_path):
+    provider = ScriptedProvider(
+        [
+            tool_turn(
+                "r1",
+                (
+                    "c1",
+                    "escalate_to_supervisor",
+                    {
+                        "reason": "Weather question",
+                        "panel_code": "P-1001",
+                        "workstation_id": "EDGE-01",
+                        "context": None,
+                    },
+                ),
+            )
+        ]
+    )
+    history_path = tmp_path / "events.jsonl"
+
+    result = run_agent(
+        "Tell me a joke about the weather.",
+        panel_code="P-1001",
+        workstation_id="EDGE-01",
+        provider=provider,
+        event_history_path=history_path,
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is False
+    assert result["trace"] == []
+    assert not history_path.exists()
 
 
 def test_unknown_panel_returns_panel_not_found_without_invented_facts(tmp_path):
@@ -305,8 +413,10 @@ def test_unknown_panel_returns_panel_not_found_without_invented_facts(tmp_path):
 
     assert result["success"] is True
     assert "panel not found" in result["response"].lower()
-    assert result["sources"] == []
+    assert result["sources"] == ["SOP-ESCALATION-001"]
     assert result["trace"][0]["error"]["code"] == "panel_not_found"
+    assert result["trace"][-1]["tool"] == "escalate_to_supervisor"
+    assert result["escalated"] is True
     assert "material" not in result["response"].lower()
     assert "dimensions" not in result["response"].lower()
 
@@ -335,7 +445,7 @@ def test_supervisor_escalation_is_simulated_and_recorded(tmp_path):
             ),
             final_turn(
                 "r2",
-                "Do not process the panel. A simulated escalation was recorded for this assessment; no real supervisor was contacted.",
+                "Do not process the panel. Supervisor escalation recorded.",
             ),
         ]
     )
@@ -350,7 +460,7 @@ def test_supervisor_escalation_is_simulated_and_recorded(tmp_path):
 
     assert result["success"] is True
     assert result["escalated"] is True
-    assert "simulated" in result["response"].lower()
+    assert "supervisor escalation recorded" in result["response"].lower()
     assert [entry["tool"] for entry in result["trace"]] == [
         "search_sop",
         "escalate_to_supervisor",
@@ -389,7 +499,7 @@ def test_physical_mismatch_safety_backstop_escalates_when_model_omits_tool(tmp_p
         "search_sop",
         "escalate_to_supervisor",
     ]
-    assert "supervisor escalation simulated successfully" in result["response"].lower()
+    assert "supervisor escalation recorded" in result["response"].lower()
     assert "SOP-ESCALATION-001" in result["sources"]
     assert read_event_history(history_path)[0]["event_type"] == "escalation"
 
@@ -582,8 +692,9 @@ def test_no_tool_ungrounded_production_guidance_is_blocked(tmp_path):
         event_history_path=tmp_path / "events.jsonl",
     )
 
-    assert result["success"] is False
-    assert result["error"]["code"] == "unsafe_or_ungrounded_response"
+    assert result["success"] is True
+    assert result["escalated"] is True
+    assert result["trace"][-1]["tool"] == "escalate_to_supervisor"
     assert "maximum" not in result["response"].lower()
 
 
@@ -601,8 +712,9 @@ def test_unsafe_numeric_spindle_output_is_blocked(tmp_path):
         event_history_path=tmp_path / "events.jsonl",
     )
 
-    assert result["success"] is False
-    assert result["error"]["code"] == "unsafe_or_ungrounded_response"
+    assert result["success"] is True
+    assert result["escalated"] is True
+    assert result["trace"][-1]["tool"] == "escalate_to_supervisor"
     assert "5000" not in result["response"]
 
 

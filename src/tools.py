@@ -84,6 +84,7 @@ _CONDITIONAL_SOP_SECTIONS = frozenset(
 )
 _MIN_SOP_RELEVANCE = 6
 _SECONDARY_SCORE_WINDOW = 4
+_PANEL_CODE_PATTERN = re.compile(r"^P-?(\d{4})$", re.IGNORECASE)
 
 
 def _result(
@@ -117,6 +118,16 @@ def _normalized_optional_string(value: Any) -> str | None:
     return normalized or None
 
 
+def normalize_panel_code(value: Any) -> str | None:
+    """Return a canonical P-1234 panel code for supported input shapes."""
+
+    normalized = _normalized_optional_string(value)
+    if normalized is None:
+        return None
+    match = _PANEL_CODE_PATTERN.fullmatch(normalized)
+    return f"P-{match.group(1)}" if match else None
+
+
 def _is_json_serializable(value: Any) -> bool:
     try:
         json.dumps(value)
@@ -142,7 +153,7 @@ def _data_source_failure(tool: str, tool_input: dict[str, Any]) -> dict[str, Any
 def get_panel(panel_code: Any) -> dict[str, Any]:
     """Return the exact grounded panel record for a normalized panel code."""
 
-    normalized_code = _normalized_optional_string(panel_code)
+    normalized_code = normalize_panel_code(panel_code)
     tool_input = {"panel_code": normalized_code}
     if normalized_code is None:
         return _result(
@@ -150,7 +161,7 @@ def get_panel(panel_code: Any) -> dict[str, Any]:
             tool_input,
             success=False,
             error_code="invalid_input",
-            error_message="Panel code must be a non-empty string.",
+            error_message="Panel code must use the format P-1234 or P1234.",
         )
 
     try:
@@ -341,7 +352,7 @@ def record_event(
 
     normalized_event_type = _normalized_optional_string(event_type)
     normalized_message = _normalized_optional_string(message)
-    normalized_panel_code = _normalized_optional_string(panel_code)
+    normalized_panel_code = normalize_panel_code(panel_code)
     normalized_workstation_id = _normalized_optional_string(workstation_id)
     normalized_metadata = {} if metadata is None else metadata
     tool_input = {
@@ -366,7 +377,7 @@ def record_event(
             tool_input,
             success=False,
             error_code="invalid_input",
-            error_message="Panel code must be a non-empty string when provided.",
+            error_message="Panel code must use the format P-1234 or P1234 when provided.",
         )
     if workstation_id is not None and normalized_workstation_id is None:
         return _result(
@@ -429,7 +440,7 @@ def escalate_to_supervisor(
     """Record a simulated assessment escalation without contacting anyone."""
 
     normalized_reason = _normalized_optional_string(reason)
-    normalized_panel_code = _normalized_optional_string(panel_code)
+    normalized_panel_code = normalize_panel_code(panel_code)
     normalized_workstation_id = _normalized_optional_string(workstation_id)
     normalized_context = {} if context is None else context
     tool_input = {
@@ -453,7 +464,7 @@ def escalate_to_supervisor(
             tool_input,
             success=False,
             error_code="invalid_input",
-            error_message="Panel code must be a non-empty string when provided.",
+            error_message="Panel code must use the format P-1234 or P1234 when provided.",
         )
     if workstation_id is not None and normalized_workstation_id is None:
         return _result(
@@ -475,7 +486,7 @@ def escalate_to_supervisor(
     escalation_id = f"esc_{uuid4().hex}"
     event_result = record_event(
         "escalation",
-        f"Simulated supervisor escalation requested: {normalized_reason}",
+        f"Supervisor escalation recorded: {normalized_reason}",
         panel_code=normalized_panel_code,
         workstation_id=normalized_workstation_id,
         metadata={
@@ -492,9 +503,7 @@ def escalate_to_supervisor(
             tool_input,
             success=False,
             error_code="escalation_record_failed",
-            error_message=(
-                "The simulated escalation was not recorded; no supervisor was contacted."
-            ),
+            error_message="The supervisor escalation event could not be recorded.",
         )
 
     return _result(
@@ -504,10 +513,7 @@ def escalate_to_supervisor(
         data={
             "escalation_id": escalation_id,
             "status": "escalated",
-            "message": (
-                "Supervisor escalation simulated successfully and recorded as an "
-                "assessment event. This demo does not contact a real supervisor."
-            ),
+            "message": "Supervisor escalation recorded.",
             "panel_code": normalized_panel_code,
             "workstation_id": normalized_workstation_id,
             "context": normalized_context,
