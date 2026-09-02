@@ -269,7 +269,10 @@ def _render_result(result: dict[str, Any] | None, action: str | None) -> None:
     response = str(result.get("response", "The request could not be completed safely."))
     if result.get("escalated"):
         st.warning(response)
-        st.warning("Simulated supervisor escalation — no real supervisor was contacted.")
+        st.warning(
+            "Supervisor escalation simulated successfully — an assessment event was "
+            "recorded. This demo does not contact a real supervisor."
+        )
     elif result.get("success"):
         st.success(response)
     else:
@@ -341,7 +344,7 @@ def _render_history(
     if not safe_events:
         st.info("No scan, question, or escalation history yet.")
         return
-    st.dataframe(list(reversed(safe_events)), use_container_width=True, hide_index=True)
+    st.dataframe(list(reversed(safe_events)), width="stretch", hide_index=True)
 
 
 def render_app(

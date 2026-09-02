@@ -505,8 +505,8 @@ def escalate_to_supervisor(
             "escalation_id": escalation_id,
             "status": "escalated",
             "message": (
-                "Simulated escalation recorded for this assessment only; "
-                "no real supervisor was contacted."
+                "Supervisor escalation simulated successfully and recorded as an "
+                "assessment event. This demo does not contact a real supervisor."
             ),
             "panel_code": normalized_panel_code,
             "workstation_id": normalized_workstation_id,

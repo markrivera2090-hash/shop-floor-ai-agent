@@ -6,9 +6,9 @@ A junior AI engineer take-home project for a grounded shop-floor assistant.
 
 ## Current Status
 
-Phase 5 – Local Streamlit application implemented and automated-test verified
+Phase 5 – Streamlit application implemented, deployed, and automated-test verified
 
-The repository now includes a local Streamlit operator UI over the grounded OpenAI agent. It supports workstation selection, panel scans, deterministic panel details, follow-up questions, grounded sources, a safe tool trace, local event history, and explicitly simulated escalation. Final independent five-scenario browser verification remains pending.
+The repository includes a Streamlit operator UI over the grounded OpenAI agent. It supports workstation selection, panel scans, deterministic panel details, follow-up questions, grounded sources, a safe tool trace, local or ephemeral hosted event history, and explicitly simulated escalation. The production page and core controls have been browser-verified; final independent end-to-end browser verification of all five scenarios remains pending.
 
 ## Demo URL
 
@@ -28,7 +28,7 @@ The controlled correct-workstation scenario was verified live with `gpt-5.6-sol`
 
 ## Agent Implementation Approach
 
-The LLM receives all five function definitions and selects tools through automatic function calling. A bounded orchestration loop executes only allowlisted deterministic tools, returns their results to the model, and supports additional tool rounds. Sources and the safe execution trace are computed from actual tool results rather than model-written citations. The UI has an explicit dependency-injection seam so tests can supply in-memory runners without activating the production provider.
+The LLM receives all five function definitions and selects tools through automatic function calling. A bounded orchestration loop executes only allowlisted deterministic tools, returns their results to the model, and supports additional tool rounds. A narrow safety backstop guarantees that an explicitly reported physical-label mismatch records the required simulated escalation if the model tries to answer without calling that tool; other scenarios remain model-directed. Sources and the safe execution trace are computed from actual tool results rather than model-written citations. The UI has an explicit dependency-injection seam so tests can supply in-memory runners without activating the production provider.
 
 ## Data Storage Approach
 
@@ -81,7 +81,7 @@ The complete automated suite is run with:
 .venv/bin/python -m pytest
 ```
 
-The complete suite passes 189 tests with 0 failures, including 22 injected Streamlit AppTest scenarios. Syntax checks and local Streamlit/ASGI page-load smoke checks also pass. The controlled correct-workstation API scenario passes. The final independent five-scenario browser verification has not been marked as complete.
+The complete suite passes 193 tests with 0 failures, including 22 injected Streamlit AppTest scenarios. Syntax checks and local Streamlit/ASGI page-load smoke checks also pass. Controlled live API checks cover the correct-workstation and supervisor-escalation scenarios. The production page and core controls load successfully; final independent end-to-end browser verification of all five scenarios has not been marked as complete.
 
 ## Brief Technical Questions
 

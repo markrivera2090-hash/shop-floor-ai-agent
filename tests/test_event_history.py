@@ -10,7 +10,9 @@ import pytest
 from src.event_history import (
     DEFAULT_EVENT_HISTORY_PATH,
     EventHistoryError,
+    VERCEL_EVENT_HISTORY_PATH,
     read_event_history,
+    runtime_event_history_path,
 )
 from src.tools import record_event
 
@@ -29,6 +31,22 @@ def preserve_real_event_history():
 
 def test_missing_event_history_file_returns_empty_list(tmp_path):
     assert read_event_history(tmp_path / "missing.jsonl") == []
+
+
+def test_runtime_history_defaults_to_local_storage():
+    assert runtime_event_history_path({}) is None
+
+
+def test_runtime_history_uses_writable_vercel_tmp_storage():
+    assert runtime_event_history_path({"VERCEL": "1"}) == VERCEL_EVENT_HISTORY_PATH
+
+
+def test_explicit_runtime_history_path_overrides_vercel_default(tmp_path):
+    configured = str(tmp_path / "configured.jsonl")
+
+    assert runtime_event_history_path(
+        {"VERCEL": "1", "EVENT_HISTORY_PATH": configured}
+    ) == configured
 
 
 def test_recording_scan_creates_one_valid_event(tmp_path):

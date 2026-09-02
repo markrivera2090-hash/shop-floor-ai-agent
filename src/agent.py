@@ -524,6 +524,64 @@ def run_agent(
             )
 
         final_response = output_text.strip()
+        if _PHYSICAL_MISMATCH_TERMS.search(normalized_request) and not escalated:
+            if total_tool_calls >= max_total_tool_calls:
+                return _agent_result(
+                    success=False,
+                    response=(
+                        "STOP — do not process the panel. The required simulated "
+                        "supervisor escalation could not be completed within the safe "
+                        "tool-call limit."
+                    ),
+                    sources=grounded_sources,
+                    trace=trace,
+                    escalated=False,
+                    model=model,
+                    error_code="agent_limit_reached",
+                    error_message="Maximum total tool calls exceeded.",
+                )
+            escalation_result = dispatch_tool(
+                "escalate_to_supervisor",
+                {
+                    "reason": "Physical panel label conflicts with system information",
+                    "panel_code": normalized_panel_code,
+                    "workstation_id": normalized_workstation_id,
+                    "context": {
+                        "issue": "physical_panel_label_mismatch",
+                        "observed": "Operator reported a physical-label discrepancy",
+                        "expected": "Physical label and system information must match",
+                    },
+                },
+                context=execution_context,
+            )
+            total_tool_calls += 1
+            escalation_result, _ = _bounded_tool_result(escalation_result)
+            tool_results.append(escalation_result)
+            trace.append(_trace_entry(len(trace) + 1, escalation_result))
+            if not escalation_result["success"]:
+                return _agent_result(
+                    success=False,
+                    response=(
+                        "STOP — do not process the panel. The supervisor escalation "
+                        "simulation could not be recorded; notify a supervisor through "
+                        "the approved site process."
+                    ),
+                    sources=grounded_sources,
+                    trace=trace,
+                    escalated=False,
+                    model=model,
+                    error_code="escalation_record_failed",
+                    error_message="The required simulated escalation could not be recorded.",
+                )
+            for source in escalation_result["sources"]:
+                if source not in grounded_sources:
+                    grounded_sources.append(source)
+            escalated = True
+            final_response = (
+                "STOP — do not process the panel. Supervisor escalation simulated "
+                "successfully and recorded as an assessment event. This demo does not "
+                "contact a real supervisor."
+            )
         guard_failure = _apply_safety_gate(
             request=normalized_request,
             response=final_response,

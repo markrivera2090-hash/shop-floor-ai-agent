@@ -20,7 +20,7 @@ Sources come only from the agent result contract, whose orchestration already de
 
 ## Event history
 
-The application reads recent events from ignored `runtime/event_history.jsonl`. A missing file produces a neutral empty state. Malformed or unreadable history produces a sanitized warning without paths or raw exceptions. Escalations remain explicitly simulated and never claim real contact.
+The local application reads recent events from ignored `runtime/event_history.jsonl`; Vercel uses writable ephemeral `/tmp/shop-floor-ai-agent/event_history.jsonl`. A missing file produces a neutral empty state. Malformed or unreadable history produces a sanitized warning without paths or raw exceptions. Escalation success is labeled explicitly as a completed simulation and never claims real contact.
 
 ## Test seam
 

@@ -115,8 +115,8 @@ def _escalation_result():
     return {
         "success": True,
         "response": (
-            "Do not process. A simulated escalation was recorded; no real supervisor "
-            "was contacted."
+            "Do not process. Supervisor escalation simulated successfully and recorded "
+            "as an assessment event. This demo does not contact a real supervisor."
         ),
         "sources": ["SOP-MISMATCH-001", "SOP-ESCALATION-001"],
         "trace": [
@@ -388,8 +388,8 @@ def test_physical_label_mismatch_is_simulated_in_result_trace_and_history(tmp_pa
     text = _visible_text(app).lower()
 
     assert "do not process" in text
-    assert "simulated supervisor escalation" in text
-    assert "no real supervisor was contacted" in text
+    assert "supervisor escalation simulated successfully" in text
+    assert "this demo does not contact a real supervisor" in text
     assert "escalate_to_supervisor" in text
     assert backend.events[0]["event_type"] == "escalation"
     assert backend.events[0]["metadata"]["simulated"] is True

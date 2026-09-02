@@ -207,7 +207,8 @@ def test_escalation_is_simulated_and_cites_source(tmp_path):
     assert result["success"] is True
     assert result["data"]["status"] == "escalated"
     assert "simulated" in result["data"]["message"].lower()
-    assert "no real supervisor was contacted" in result["data"]["message"].lower()
+    assert "supervisor escalation simulated successfully" in result["data"]["message"].lower()
+    assert "this demo does not contact a real supervisor" in result["data"]["message"].lower()
     assert result["sources"] == ["SOP-ESCALATION-001"]
 
 

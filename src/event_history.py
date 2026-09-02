@@ -3,17 +3,33 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from src.data_loader import PROJECT_ROOT
 
 
 DEFAULT_EVENT_HISTORY_PATH = PROJECT_ROOT / "runtime" / "event_history.jsonl"
+VERCEL_EVENT_HISTORY_PATH = Path("/tmp/shop-floor-ai-agent/event_history.jsonl")
 
 
 class EventHistoryError(ValueError):
     """Raised when event history input or stored content is invalid."""
+
+
+def runtime_event_history_path(
+    environment: Mapping[str, str] | None = None,
+) -> str | Path | None:
+    """Select writable history storage for local or hosted execution."""
+
+    config = os.environ if environment is None else environment
+    configured_path = config.get("EVENT_HISTORY_PATH", "").strip()
+    if configured_path:
+        return configured_path
+    if config.get("VERCEL"):
+        return VERCEL_EVENT_HISTORY_PATH
+    return None
 
 
 def _history_path(path: str | Path | None) -> Path:

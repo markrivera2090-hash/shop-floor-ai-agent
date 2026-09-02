@@ -359,6 +359,41 @@ def test_supervisor_escalation_is_simulated_and_recorded(tmp_path):
     assert read_event_history(history_path)[0]["event_type"] == "escalation"
 
 
+def test_physical_mismatch_safety_backstop_escalates_when_model_omits_tool(tmp_path):
+    history_path = tmp_path / "events.jsonl"
+    provider = ScriptedProvider(
+        [
+            tool_turn(
+                "r1",
+                (
+                    "c1",
+                    "search_sop",
+                    {"query": "physical panel label mismatch"},
+                ),
+            ),
+            final_turn("r2", "Do not process the panel; consult a supervisor."),
+        ]
+    )
+
+    result = run_agent(
+        "The physical panel label does not match the system information.",
+        panel_code="P-1001",
+        workstation_id="EDGE-01",
+        provider=provider,
+        event_history_path=history_path,
+    )
+
+    assert result["success"] is True
+    assert result["escalated"] is True
+    assert [entry["tool"] for entry in result["trace"]] == [
+        "search_sop",
+        "escalate_to_supervisor",
+    ]
+    assert "supervisor escalation simulated successfully" in result["response"].lower()
+    assert "SOP-ESCALATION-001" in result["sources"]
+    assert read_event_history(history_path)[0]["event_type"] == "escalation"
+
+
 def test_different_requests_can_use_different_model_chosen_sequences(tmp_path):
     panel_provider = ScriptedProvider(
         [
