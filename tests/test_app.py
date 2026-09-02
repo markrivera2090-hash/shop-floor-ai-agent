@@ -701,6 +701,13 @@ def test_app_source_uses_real_runner_default_but_no_browser_test_switch():
     assert 'disabled=isinstance(pending_request, dict)' in source
     assert "on_click=_handle_scan_submission" in source
     assert "on_submit=_handle_chat_submission" in source
+    for section_key in (
+        "panel_details_section",
+        "scan_result_section",
+        "agent_section",
+        "event_history_section",
+    ):
+        assert f'key="{section_key}"' in source
     assert source.index("_render_history(history_reader") < source.index(
         "_process_pending_request(agent_runner"
     )

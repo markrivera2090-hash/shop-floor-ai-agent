@@ -571,75 +571,88 @@ def render_app(
     )
 
     current_workstation = _selected_workstation_id()
-    _render_panel(st.session_state.current_panel, current_workstation)
-    _render_result(st.session_state.latest_scan_result, "scan")
     pending_request = st.session_state.get("pending_request")
-    if isinstance(pending_request, dict) and pending_request.get("request_type") == "scan":
-        st.info("Checking the panel and workstation against approved records…")
+    with st.container(key="panel_details_section"):
+        _render_panel(st.session_state.current_panel, current_workstation)
 
-    st.subheader("Ask the agent")
-    current_panel = st.session_state.current_panel
-    question_panel_code = (
-        current_panel.get("panel_code")
-        if isinstance(current_panel, dict)
-        else _normalize_panel_code(st.session_state.panel_code_input)
-    )
-    use_question_context = st.checkbox(
-        "Use selected panel and workstation context",
-        value=True,
-        key="use_question_context",
-        help=(
-            "Turn this off for a general SOP question that should not be associated "
-            "with the selected panel or workstation."
-        ),
-    )
-    if use_question_context:
-        panel_context_label = (
-            f"Panel {question_panel_code}" if question_panel_code else "No panel code"
+    with st.container(key="scan_result_section"):
+        _render_result(st.session_state.latest_scan_result, "scan")
+        if (
+            isinstance(pending_request, dict)
+            and pending_request.get("request_type") == "scan"
+        ):
+            st.info("Checking the panel and workstation against approved records…")
+
+    with st.container(key="agent_section"):
+        st.subheader("Ask the agent")
+        current_panel = st.session_state.current_panel
+        question_panel_code = (
+            current_panel.get("panel_code")
+            if isinstance(current_panel, dict)
+            else _normalize_panel_code(st.session_state.panel_code_input)
         )
-        st.caption(
-            f"Question context: {panel_context_label} · Workstation {current_workstation}"
+        use_question_context = st.checkbox(
+            "Use selected panel and workstation context",
+            value=True,
+            key="use_question_context",
+            help=(
+                "Turn this off for a general SOP question that should not be associated "
+                "with the selected panel or workstation."
+            ),
         )
-    else:
-        st.caption("Question context: None · general SOP question")
+        if use_question_context:
+            panel_context_label = (
+                f"Panel {question_panel_code}"
+                if question_panel_code
+                else "No panel code"
+            )
+            st.caption(
+                f"Question context: {panel_context_label} · "
+                f"Workstation {current_workstation}"
+            )
+        else:
+            st.caption("Question context: None · general SOP question")
 
-    st.button(
-        "Clear chat",
-        icon=":material/delete_sweep:",
-        key="clear_chat",
-        disabled=isinstance(pending_request, dict),
-        on_click=_clear_chat_state,
-    )
-
-    with st.container(border=True, key="agent_chat_panel"):
-        transcript_key = f"chat_transcript_{st.session_state.chat_generation}"
-        with st.container(key=transcript_key):
-            for message in st.session_state.chat_messages:
-                if not isinstance(message, dict):
-                    continue
-                role = message.get("role")
-                if role == "user":
-                    with st.chat_message("user"):
-                        st.markdown(str(message.get("content", "")))
-                        if message.get("context"):
-                            st.caption(str(message["context"]))
-                elif role == "assistant" and isinstance(message.get("result"), dict):
-                    with st.chat_message("assistant"):
-                        _render_chat_result(message["result"])
-
-            if (
-                isinstance(pending_request, dict)
-                and pending_request.get("request_type") == "question"
-            ):
-                with st.chat_message("assistant"):
-                    st.caption("Checking approved records and SOP guidance…")
-
-        st.chat_input(
-            "Ask about a panel, approved SOP guidance, or a shop-floor issue",
-            key="agent_chat_input",
+        st.button(
+            "Clear chat",
+            icon=":material/delete_sweep:",
+            key="clear_chat",
             disabled=isinstance(pending_request, dict),
-            on_submit=_handle_chat_submission,
+            on_click=_clear_chat_state,
         )
 
-    _render_history(history_reader, event_history_path)
+        with st.container(border=True, key="agent_chat_panel"):
+            transcript_key = f"chat_transcript_{st.session_state.chat_generation}"
+            with st.container(key=transcript_key):
+                for message in st.session_state.chat_messages:
+                    if not isinstance(message, dict):
+                        continue
+                    role = message.get("role")
+                    if role == "user":
+                        with st.chat_message("user"):
+                            st.markdown(str(message.get("content", "")))
+                            if message.get("context"):
+                                st.caption(str(message["context"]))
+                    elif role == "assistant" and isinstance(
+                        message.get("result"), dict
+                    ):
+                        with st.chat_message("assistant"):
+                            _render_chat_result(message["result"])
+
+                if (
+                    isinstance(pending_request, dict)
+                    and pending_request.get("request_type") == "question"
+                ):
+                    with st.chat_message("assistant"):
+                        st.caption("Checking approved records and SOP guidance…")
+
+            st.chat_input(
+                "Ask about a panel, approved SOP guidance, or a shop-floor issue",
+                key="agent_chat_input",
+                disabled=isinstance(pending_request, dict),
+                on_submit=_handle_chat_submission,
+            )
+
+    with st.container(key="event_history_section"):
+        _render_history(history_reader, event_history_path)
     _process_pending_request(agent_runner, panel_lookup, event_history_path)
